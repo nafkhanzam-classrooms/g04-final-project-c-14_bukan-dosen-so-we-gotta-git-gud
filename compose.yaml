@@ -1,7 +1,10 @@
 services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "6767:6767"
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - proxy_net
+
+networks:
+  proxy_net:
+    driver: bridge

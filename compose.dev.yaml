@@ -1,7 +1,23 @@
 services:
+  caddy:
+    image: lucaslorentz/caddy-docker-proxy:2.8-alpine
+    ports:
+      - "6767:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - proxy_net
+    restart: unless-stopped
+
   backend:
     build:
+      context: ./backend
       target: development
     volumes:
       - ./backend:/app
       - /app/.venv
+    networks:
+      - proxy_net
+    labels:
+      caddy: http://localhost
+      caddy.reverse_proxy: "{{upstreams 6767}}"
