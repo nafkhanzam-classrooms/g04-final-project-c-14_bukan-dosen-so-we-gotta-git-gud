@@ -78,6 +78,7 @@ jobs:
         run: |  
           cat << EOF > .env
           BACKEND_DOMAIN=${{ secrets.BACKEND_DOMAIN }}
+          CADDY_EMAIL=${{ secrets.CADDY_EMAIL }}
           IMAGE_TAG=${{ needs.build-and-push.outputs.short_sha }}
           EOF
 
