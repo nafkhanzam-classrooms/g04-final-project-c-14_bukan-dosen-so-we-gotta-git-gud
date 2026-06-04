@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'frontend/**' 
+      - '.github/workflows/cd-frontend.yml'
 
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
