@@ -1,5 +1,25 @@
 services:
+  caddy:
+    image: lucaslorentz/caddy-docker-proxy:2.8-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - caddy_data:/data
+    networks:
+      - proxy_net
+    restart: unless-stopped
+
   backend:
-    build:
-      target: production
-    restart: always
+    image: ghcr.io/lazuardiyasfin/carbonfreeclass-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    networks: 
+      - proxy_net
+    labels:
+      caddy: ${BACKEND_DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 6767}}"
+
+volumes:
+  caddy_data:
+  
