@@ -10,6 +10,8 @@ services:
     networks:
       - proxy_net
     restart: unless-stopped
+    labels:
+      caddy.email: ${CADDY_EMAIL}
 
   backend:
     image: ghcr.io/lazuardiyasfin/carbonfreeclass-backend:${IMAGE_TAG:-latest}
