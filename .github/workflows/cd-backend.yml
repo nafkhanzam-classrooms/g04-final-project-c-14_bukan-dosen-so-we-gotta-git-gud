@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'backend/**'
+      - 'compose*.yaml'   
+      - '.github/workflows/cd-backend.yml'
     
 permissions:
   contents: read
