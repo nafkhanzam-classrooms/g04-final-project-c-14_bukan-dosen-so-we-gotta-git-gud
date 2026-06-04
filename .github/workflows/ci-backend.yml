@@ -30,13 +30,18 @@ jobs:
         run: uv sync --all-extras --dev
         working-directory: backend
     
-      - name: Code Lint & Format
-        run: | 
-          uv run ruff check .
-          uv run ruff format --check .
-          uv run mypy src
+      - name: Static Type Checking
+        run: uv run mypy .
+        working-directory: backend
+      
+      - name: Code Lint
+        run: uv run ruff check .
+        working-directory: backend
+      
+      - name: Code Format
+        run: uv run ruff format --check .
         working-directory: backend
 
       - name: Execute Tests with uv
-        run: uv run pytest
+        run: uv run pytest .
         working-directory: backend
