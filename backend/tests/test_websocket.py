@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 import websockets
-from shared.infrastructure.ws_manager import WSConnectionManager
+from shared.infrastructure.websocket.manager import WSConnectionManager
 
 
 @pytest.fixture
@@ -57,7 +57,7 @@ async def test_unregister(manager, mock_websocket):
 
 
 @pytest.mark.asyncio
-@patch("shared.infrastructure.ws_manager.WSMessage")
+@patch("shared.infrastructure.websocket.ws_manager.WSMessage")
 async def test_send_message(mock_ws_message_cls, manager, mock_websocket):
     session_id = "user_123"
     manager._connections[session_id] = mock_websocket
@@ -73,7 +73,7 @@ async def test_send_message(mock_ws_message_cls, manager, mock_websocket):
 
 
 @pytest.mark.asyncio
-@patch("shared.infrastructure.ws_manager.WSMessage")
+@patch("shared.infrastructure.websocket.ws_manager.WSMessage")
 async def test_broadcast_cleans_up_closed_connections(mock_ws_message_cls, manager):
     ws_aktif = AsyncMock(spec=websockets.ServerConnection)
     ws_putus = AsyncMock(spec=websockets.ServerConnection)
