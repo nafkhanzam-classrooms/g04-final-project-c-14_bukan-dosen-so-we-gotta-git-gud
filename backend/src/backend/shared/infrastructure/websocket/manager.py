@@ -1,7 +1,10 @@
+import logging
 from typing import Any
 
 import websockets
-from shared.domain.ws_envelope import WSMessage
+from shared.domain.websocket.envelope import WSMessage
+
+logger = logging.getLogger(__name__)
 
 
 class WSConnectionManager:
@@ -11,8 +14,8 @@ class WSConnectionManager:
     async def register(self, session_id: str, websocket: websockets.ServerConnection) -> None:
         # 1. Duplicate Login
         if session_id in self._connections:
-            print(
-                f"[MANAGER] Duplicate login detected for '{session_id}'. Kicking new connection..."
+            logger.warning(
+                f"Duplicate login detected for '{session_id}'. Kicking new connection..."
             )
             try:
                 await websocket.send(
@@ -26,13 +29,12 @@ class WSConnectionManager:
 
         # 2. Normal scenario + could also be used for reconnect
         self._connections[session_id] = websocket
-        print(f"[MANAGER] User '{session_id}' registered. Total online: {len(self._connections)}")
+        logger.info(f"User '{session_id}' registered. Total online: {len(self._connections)}")
 
     async def unregister(self, session_id: str) -> None:
-        # Disconnect/Unregister
         if session_id in self._connections:
             del self._connections[session_id]
-            print(f"[MANAGER] User '{session_id}' left. Total online: {len(self._connections)}")
+            logger.info(f"User '{session_id}' left. Total online: {len(self._connections)}")
         pass
 
     async def send(self, event: str, session_id: str, data: dict[str, Any]) -> None:
