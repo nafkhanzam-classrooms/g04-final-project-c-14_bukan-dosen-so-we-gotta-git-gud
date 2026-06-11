@@ -1,8 +1,9 @@
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
 import websockets
-from shared.infrastructure.ws_manager import WSConnectionManager
+from shared.infrastructure.websocket.manager import WSConnectionManager
 
 
 @pytest.fixture
@@ -33,17 +34,9 @@ async def test_register_duplicate_login(manager, mock_websocket):
     await manager.register(session_id, old_ws)
     await manager.register(session_id, mock_websocket)
 
-    mock_websocket.send.assert_called_once_with(
-        "ERROR|DUPLICATE_LOGIN| Your account is logged in another location"
-    )
-    mock_websocket.close.assert_called_once_with(
-        code=1008, reason="Duplicate Login - active session exists"
-    )
+    old_ws.close.assert_called_once_with(code=4000, reason="Session replaced by a new connection")
 
-    old_ws.send.assert_not_called()
-    old_ws.close.assert_not_called()
-
-    assert manager._connections[session_id] == old_ws
+    assert manager._connections[session_id] == mock_websocket
 
 
 @pytest.mark.asyncio
@@ -57,12 +50,11 @@ async def test_unregister(manager, mock_websocket):
 
 
 @pytest.mark.asyncio
-@patch("shared.infrastructure.ws_manager.WSMessage")
+@patch("shared.infrastructure.websocket.manager.WSMessage")
 async def test_send_message(mock_ws_message_cls, manager, mock_websocket):
     session_id = "user_123"
     manager._connections[session_id] = mock_websocket
 
-    # Mock behavior untuk WSMessage
     mock_envelope = mock_ws_message_cls.return_value
     mock_envelope.model_dump_json.return_value = '{"event": "test", "data": {"msg": "hello"}}'
 
@@ -73,21 +65,47 @@ async def test_send_message(mock_ws_message_cls, manager, mock_websocket):
 
 
 @pytest.mark.asyncio
-@patch("shared.infrastructure.ws_manager.WSMessage")
-async def test_broadcast_cleans_up_closed_connections(mock_ws_message_cls, manager):
-    ws_aktif = AsyncMock(spec=websockets.ServerConnection)
-    ws_putus = AsyncMock(spec=websockets.ServerConnection)
+async def test_establish_new_session(manager):
+    ws = AsyncMock(spec=websockets.ServerConnection)
+    # First frame without session_id
+    ws.recv.return_value = json.dumps({"data": {"session_id": None}})
 
-    ws_putus.send.side_effect = websockets.ConnectionClosed(None, None)
+    session_id = await manager.establish(ws)
 
-    manager._connections["user_aktif"] = ws_aktif
-    manager._connections["user_putus"] = ws_putus
+    assert session_id is not None
+    assert len(session_id) > 0
+    assert session_id in manager._connections
+    ws.send.assert_not_called()  # No error send
 
-    mock_envelope = mock_ws_message_cls.return_value
-    mock_envelope.model_dump_json.return_value = '{"event": "bcast"}'
 
-    await manager.broadcast("bcast", {"content": "data"})
+@pytest.mark.asyncio
+async def test_establish_reconnect_existing(manager):
+    # Pre-register a session
+    old_ws = AsyncMock(spec=websockets.ServerConnection)
+    manager._connections["existing_sess"] = old_ws
 
-    ws_aktif.send.assert_called_once()
-    assert "user_aktif" in manager._connections
-    assert "user_putus" not in manager._connections
+    # New connection tries to reconnect with same id
+    new_ws = AsyncMock(spec=websockets.ServerConnection)
+    new_ws.recv.return_value = json.dumps({"data": {"session_id": "existing_sess"}})
+
+    session_id = await manager.establish(new_ws)
+
+    assert session_id == "existing_sess"
+
+    new_ws.send.assert_not_called()
+
+    old_ws.close.assert_called_once_with(code=4000, reason="Session replaced by a new connection")
+
+    assert manager._connections["existing_sess"] == new_ws
+
+
+@pytest.mark.asyncio
+async def test_establish_reconnect_after_disconnect(manager):
+    # No previous connection for this id, but client sends it
+    new_ws = AsyncMock(spec=websockets.ServerConnection)
+    new_ws.recv.return_value = json.dumps({"data": {"session_id": "reconnect_me"}})
+
+    session_id = await manager.establish(new_ws)
+
+    assert session_id == "reconnect_me"
+    assert "reconnect_me" in manager._connections
