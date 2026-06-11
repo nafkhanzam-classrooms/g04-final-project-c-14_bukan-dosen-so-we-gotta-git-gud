@@ -17,18 +17,12 @@ class WSConnectionManager:
     async def register(self, session_id: str, websocket: websockets.ServerConnection) -> None:
         # 1. Duplicate Login
         if session_id in self._connections:
-            logger.warning(
-                f"Duplicate login detected for '{session_id}'. Kicking new connection..."
+            logger.info(
+                f"Existing session '{session_id}' found. Closing old connection to allow reconnect."
             )
-            try:
-                await websocket.send(
-                    "ERROR|DUPLICATE_LOGIN| Your account is logged in another location"
-                )
-                await websocket.close(code=1008, reason="Duplicate Login - active session exists")
-            except websockets.ConnectionClosed:
-                pass
-
-            return
+            old_ws = self._connections[session_id]
+            with contextlib.suppress(websockets.ConnectionClosed):
+                await old_ws.close(code=4000, reason="Session replaced by a new connection")
 
         # 2. Normal scenario + could also be used for reconnect
         self._connections[session_id] = websocket
@@ -66,10 +60,5 @@ class WSConnectionManager:
             logger.info(f"Reconnect attempt: {session_id}")
 
         await self.register(session_id, websocket)
-        # register() already returns without adding if duplicate login, and closes the new socket.
-        # If the session_id was already present, the new websocket is kicked, and session_id is not stored.
-        # So check if it's actually registered now:
-        if session_id not in self._connections:
-            return None  # duplicate login handled, caller can stop
 
         return session_id

@@ -34,18 +34,9 @@ async def test_register_duplicate_login(manager, mock_websocket):
     await manager.register(session_id, old_ws)
     await manager.register(session_id, mock_websocket)
 
-    # New connection gets kicked
-    mock_websocket.send.assert_called_once_with(
-        "ERROR|DUPLICATE_LOGIN| Your account is logged in another location"
-    )
-    mock_websocket.close.assert_called_once_with(
-        code=1008, reason="Duplicate Login - active session exists"
-    )
-    # Old connection untouched
-    old_ws.send.assert_not_called()
-    old_ws.close.assert_not_called()
+    old_ws.close.assert_called_once_with(code=4000, reason="Session replaced by a new connection")
 
-    assert manager._connections[session_id] == old_ws
+    assert manager._connections[session_id] == mock_websocket
 
 
 @pytest.mark.asyncio
@@ -99,16 +90,15 @@ async def test_establish_reconnect_existing(manager):
 
     session_id = await manager.establish(new_ws)
 
-    # Should be kicked as duplicate
-    assert session_id is None
-    new_ws.send.assert_called_once_with(
-        "ERROR|DUPLICATE_LOGIN| Your account is logged in another location"
+    assert session_id == "existing_sess"
+
+    new_ws.send.assert_not_called()
+
+    old_ws.close.assert_called_once_with(
+        code=4000, reason="Session replaced by a new connection"
     )
-    new_ws.close.assert_called_once_with(
-        code=1008, reason="Duplicate Login - active session exists"
-    )
-    # Old connection remains
-    assert "existing_sess" in manager._connections
+    
+    assert manager._connections["existing_sess"] == new_ws
 
 
 @pytest.mark.asyncio
