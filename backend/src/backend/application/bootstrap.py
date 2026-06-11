@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from classroom.application.classroom_service import ClassroomService
 from classroom.interface.classroom_handler import ClassroomHandler
@@ -41,4 +42,11 @@ class Application:
         self.ws_router.register("classroom", self.classroom_handler)
 
     async def start_background_tasks(self) -> None:
+        try:
+            await self.redis.ping()
+            logging.info("Redis connection established successfully.")
+        except Exception as e:
+            logging.error(f"Redis connection failed: {e}")
+            raise
+
         asyncio.create_task(self.event_bus.subscribe("room_events", self.event_handler))
