@@ -36,6 +36,13 @@ services:
       caddy.1_handle_path: /slides/*
       caddy.1_handle_path.0_root: "* /app/public/slides"
       caddy.1_handle_path.1_file_server: ""
+      caddy.@upload_options.path: /upload/*
+      caddy.@upload_options.method: OPTIONS
+      caddy.respond: "@upload_options 204"
+      caddy.@upload.path: /upload/*
+      caddy.header_1: '@upload Access-Control-Allow-Origin "${FRONTEND_DOMAIN}"'
+      caddy.header_2: '@upload Access-Control-Allow-Methods "POST, OPTIONS"'
+      caddy.header_3: '@upload Access-Control-Allow-Headers "*"'
 
 volumes:
   caddy_data:
