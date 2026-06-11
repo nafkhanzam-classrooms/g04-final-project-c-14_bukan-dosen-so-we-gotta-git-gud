@@ -13,9 +13,7 @@ async def test_process_pdf_calls_pdftoppm(mock_exec, tmp_path):
 
     room_code = "XYZ123"
     pdf_filepath = "/dummy/path/file.pdf"
-    volume_dir = str(
-        tmp_path
-    )
+    volume_dir = str(tmp_path)
 
     await process_pdf(room_code, pdf_filepath, volume_dir)
 
