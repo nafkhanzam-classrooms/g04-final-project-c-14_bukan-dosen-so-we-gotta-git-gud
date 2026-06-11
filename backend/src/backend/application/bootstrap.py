@@ -10,6 +10,9 @@ from shared.infrastructure.redis.event_bus import RedisEventBus
 from shared.infrastructure.room.in_memory_registry import InMemoryRoomRegistry
 from shared.infrastructure.websocket.manager import WSConnectionManager
 from shared.infrastructure.websocket.router import WSEventRouter
+from slides.application.slide_service import SlideService
+from slides.interface.slide_handler import SlideHandler
+from slides.repository.slide_repository import SlideRedisRepository
 
 from application.event_handlers import RoomEventHandler
 
@@ -24,10 +27,12 @@ class Application:
 
         # Repositories
         classroom_repo = ClassroomRedisRepository(self.redis)
+        slide_repo = SlideRedisRepository(self.redis)
 
         # Services
         self.classroom_service = ClassroomService(classroom_repo)
         self.broadcast_service = RoomBroadcastService(self.room_registry, self.ws_manager)
+        self.slide_service = SlideService(slide_repo)
 
         # Handlers
         self.classroom_handler = ClassroomHandler(
@@ -36,10 +41,17 @@ class Application:
             room_registry=self.room_registry,
         )
 
+        self.slide_handler = SlideHandler(
+            service=self.slide_service,
+            broadcast_service=self.broadcast_service,
+            ws_manager=self.ws_manager,
+        )
+
         # Event handler and router
         self.event_handler = RoomEventHandler(self.classroom_service, self.broadcast_service)
         self.ws_router = WSEventRouter()
         self.ws_router.register("classroom", self.classroom_handler)
+        self.ws_router.register("slides", self.slide_handler)
 
     async def start_background_tasks(self) -> None:
         try:
