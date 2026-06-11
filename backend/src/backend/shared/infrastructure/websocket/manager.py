@@ -1,4 +1,7 @@
+import contextlib
+import json
 import logging
+import secrets
 from typing import Any
 
 import websockets
@@ -43,15 +46,30 @@ class WSConnectionManager:
             envelope = WSMessage(event=event, data=data)
             await websocket.send(envelope.model_dump_json())
 
-    async def broadcast(self, event: str, data: dict[str, Any]) -> None:
-        # For-loop through all connected users
-        for user_id, websocket in list(self._connections.items()):
-            try:
-                envelope = WSMessage(event=event, data=data)
-                await websocket.send(envelope.model_dump_json())
-            except websockets.ConnectionClosed:  # if connected user has left during a broadcast
-                await self.unregister(user_id)
-        pass
+    async def establish(self, websocket: websockets.ServerConnection) -> str | None:
+        try:
+            first_frame = await websocket.recv()
+        except websockets.ConnectionClosed:
+            return None
 
+        payload: dict[str, Any] = {}
+        with contextlib.suppress(json.JSONDecodeError, TypeError):
+            payload = json.loads(first_frame)
 
-ws_manager = WSConnectionManager()
+        data = payload.get("data")
+        session_id = data.get("session_id") if isinstance(data, dict) else None
+
+        if not session_id:
+            session_id = secrets.token_urlsafe(24)
+            logger.info(f"New session created: {session_id}")
+        else:
+            logger.info(f"Reconnect attempt: {session_id}")
+
+        await self.register(session_id, websocket)
+        # register() already returns without adding if duplicate login, and closes the new socket.
+        # If the session_id was already present, the new websocket is kicked, and session_id is not stored.
+        # So check if it's actually registered now:
+        if session_id not in self._connections:
+            return None  # duplicate login handled, caller can stop
+
+        return session_id

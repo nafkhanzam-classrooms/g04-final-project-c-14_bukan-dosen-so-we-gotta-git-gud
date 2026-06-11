@@ -26,6 +26,3 @@ class WSEventRouter:
             logger.warning(
                 f"No router prefix found for '{prefix}' (Full event: '{event_type}') from session '{session_id}'."
             )
-
-
-ws_router = WSEventRouter()

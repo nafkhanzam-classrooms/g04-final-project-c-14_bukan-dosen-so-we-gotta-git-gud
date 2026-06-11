@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 
 from classroom.application.classroom_service import ClassroomService
 from classroom.domain.class_payload import CreateClassPayload, JoinClassroomPayload
+from shared.domain.room.registry import RoomRegistry
 from shared.infrastructure.websocket.manager import WSConnectionManager
 
 if TYPE_CHECKING:
@@ -12,9 +13,15 @@ logger = logging.getLogger(__name__)
 
 
 class ClassroomHandler:
-    def __init__(self, service: ClassroomService, ws_manager: WSConnectionManager):
+    def __init__(
+        self,
+        service: ClassroomService,
+        ws_manager: WSConnectionManager,
+        room_registry: RoomRegistry,
+    ):
         self.service = service
         self.ws_manager = ws_manager
+        self.room_registry = room_registry
         self._event_handlers: dict[str, Callable[[str, dict[str, Any]], Awaitable[None]]] = {
             "classroom:create": self._handle_create,
             "classroom:join": self._handle_join,
@@ -64,6 +71,8 @@ class ClassroomHandler:
                 student_name=data.student_name,
                 class_code=data.class_code,
             )
+
+            await self.room_registry.add_participant(data.class_code, session_id)
 
             await self.ws_manager.send(
                 event="classroom:joined",
