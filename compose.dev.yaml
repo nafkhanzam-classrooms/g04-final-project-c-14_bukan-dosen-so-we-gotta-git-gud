@@ -5,6 +5,7 @@ services:
       - "6767:80"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - slides_volume:/app/public/slides:ro
     networks:
       - proxy_net
     restart: unless-stopped
@@ -21,3 +22,20 @@ services:
     labels:
       caddy: http://localhost
       caddy.reverse_proxy: "{{upstreams 6767}}"
+
+  worker:
+    build:
+      context: ./worker
+      target: development
+    volumes:
+      - ./worker/src:/app/src
+      - /app/.venv
+      - slides_volume:/app/public/slides
+    networks:
+      - proxy_net
+    labels:
+      caddy: http://localhost
+      caddy.0_reverse_proxy: "/upload/* {{upstreams 8080}}"
+      caddy.1_handle_path: /slides/*
+      caddy.1_handle_path.0_root: "* /app/public/slides"
+      caddy.1_handle_path.1_file_server: ""

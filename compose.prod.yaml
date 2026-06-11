@@ -7,6 +7,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - caddy_data:/data
+      - slides_volume:/app/public/slides:ro
     networks:
       - proxy_net
     restart: unless-stopped
@@ -21,6 +22,20 @@ services:
     labels:
       caddy: ${BACKEND_DOMAIN}
       caddy.reverse_proxy: "{{upstreams 6767}}"
+
+  worker:                          
+    image: ghcr.io/lazuardiyasfin/carbonfreeclass-worker:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    networks:
+      - proxy_net
+    volumes:
+      - slides_volume:/app/public/slides
+    labels:
+      caddy: ${BACKEND_DOMAIN}
+      caddy.0_reverse_proxy: "/upload/* {{upstreams 8080}}"
+      caddy.1_handle_path: /slides/*
+      caddy.1_handle_path.0_root: "* /app/public/slides"
+      caddy.1_handle_path.1_file_server: ""
 
 volumes:
   caddy_data:
