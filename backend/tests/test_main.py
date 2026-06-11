@@ -80,7 +80,7 @@ async def test_handler_new_session_and_message_loop(mock_parser, mockapp):
     # Let's simulate what main() does: it creates Application, starts background tasks,
     # then enters a serve loop. We can test the handler closure by calling it directly.
     # We'll replicate the handler definition and call it.
-    async def handler(websocket):
+    async def handler(websocket: websockets.ServerConnection) -> None:
         session_id = await ws_manager.establish(websocket)
         if not session_id:
             return
