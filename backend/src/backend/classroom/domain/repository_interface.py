@@ -1,0 +1,20 @@
+from abc import ABC, abstractmethod
+from typing import Any
+
+from classroom.domain.classroom import StudentState
+
+
+class ClassroomRepository(ABC):
+    @abstractmethod
+    async def save_room(self, class_code: str, host_session_id: str) -> None: ...
+
+    @abstractmethod
+    async def get_room(self, class_code: str) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def add_student(
+        self, class_code: str, session_id: str, student: StudentState
+    ) -> None: ...
+
+    @abstractmethod
+    async def update_total_slides(self, class_code: str, total: int) -> None: ...
