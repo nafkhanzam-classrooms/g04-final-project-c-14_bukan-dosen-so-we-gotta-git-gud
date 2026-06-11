@@ -94,10 +94,8 @@ async def test_establish_reconnect_existing(manager):
 
     new_ws.send.assert_not_called()
 
-    old_ws.close.assert_called_once_with(
-        code=4000, reason="Session replaced by a new connection"
-    )
-    
+    old_ws.close.assert_called_once_with(code=4000, reason="Session replaced by a new connection")
+
     assert manager._connections["existing_sess"] == new_ws
 
 

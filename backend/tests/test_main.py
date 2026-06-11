@@ -82,9 +82,7 @@ async def test_handler_new_session_and_message_loop(mock_parser, mockapp):
         await ws_manager.send("connection:assigned", session_id, {"session_id": session_id})
         try:
             async for raw_msg in websocket:
-                await mock_parser(
-                    raw_msg, session_id, ws_router, ws_manager
-                ) 
+                await mock_parser(raw_msg, session_id, ws_router, ws_manager)
         except websockets.ConnectionClosed:
             pass
         finally:
