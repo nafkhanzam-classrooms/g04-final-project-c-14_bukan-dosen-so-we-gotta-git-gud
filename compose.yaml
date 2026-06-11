@@ -4,6 +4,9 @@ services:
     restart: unless-stopped
     networks:
       - proxy_net
+    
+volumes:
+  slides_volume:
 
 networks:
   proxy_net:

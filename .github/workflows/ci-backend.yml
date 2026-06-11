@@ -6,9 +6,10 @@ on:
       - main
     paths:
       - 'backend/**'
+      - 'worker/**'
 
 jobs:
-  test:
+  test-backend:
     name: Run Backend Tests via UV
     runs-on: ubuntu-latest
 
@@ -45,3 +46,41 @@ jobs:
       - name: Execute Tests with uv
         run: uv run pytest .
         working-directory: backend
+
+  test-worker:
+    name: Run Worker Tests via UV
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install uv (Astral)
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "worker/uv.lock"
+
+      - name: Set up Python Environment
+        run: uv python install
+        working-directory: worker
+
+      - name: Install Project Dependencies
+        run: uv sync --all-extras --dev
+        working-directory: worker
+    
+      - name: Static Type Checking
+        run: uv run mypy .
+        working-directory: worker
+      
+      - name: Code Lint
+        run: uv run ruff check .
+        working-directory: worker
+      
+      - name: Code Format
+        run: uv run ruff format --check .
+        working-directory: worker
+
+      - name: Execute Tests with uv
+        run: uv run pytest .
+        working-directory: worker
