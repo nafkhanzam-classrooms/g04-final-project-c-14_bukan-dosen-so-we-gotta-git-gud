@@ -1,7 +1,7 @@
 import logging
 import asyncio
 import os
-from .converter import process_pptx, process_pdf
+from src.converter import process_pptx, process_pdf
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
