@@ -27,25 +27,19 @@ async def test_publish(event_bus, mock_redis):
 
 @pytest.mark.asyncio
 async def test_subscribe_and_handle_message(event_bus, mock_redis):
-    # Setup pubsub mock
     pubsub = AsyncMock()
-    mock_redis.pubsub.return_value = pubsub
     pubsub.subscribe = AsyncMock()
-    # Simulate one message then stop
-    pubsub.listen = MagicMock()
-    pubsub.listen.return_value = [
-        {"type": "message", "data": '{"event": "test", "data": {"key": "val"}}'},
-    ]
 
-    handler = AsyncMock()
-
-    # Because the subscribe method runs an infinite loop, we need to make it stop after first message
-    # We'll mock the listen generator to raise StopAsyncIteration after one message
+    # simulate listen as an async generator
     async def mock_listen():
         yield {"type": "message", "data": '{"event": "test", "data": {"key": "val"}}'}
 
     pubsub.listen = mock_listen
 
+    # Override mock_redis.pubsub with a normal Mock, not an async one
+    mock_redis.pubsub = MagicMock(return_value=pubsub)
+
+    handler = AsyncMock()
     await event_bus.subscribe("room_events", handler)
 
     pubsub.subscribe.assert_called_once_with("room_events")

@@ -55,7 +55,7 @@ async def test_process_no_event_does_nothing():
 # main handler loop tests (using patched Application)
 @pytest.mark.asyncio
 @patch("application.main.Application")
-@patch("application.main.process_raw_message")
+@patch("application.main.process_raw_message", new_callable=AsyncMock)
 async def test_handler_new_session_and_message_loop(mock_parser, mockapp):
     # Setup mocked application
     app_instance = mockapp.return_value
@@ -75,11 +75,6 @@ async def test_handler_new_session_and_message_loop(mock_parser, mockapp):
     ws.__aiter__.return_value = [json.dumps({"event": "dummy", "data": {}})]
     ws.send = AsyncMock()
 
-    # We need to call the handler directly; but main() runs forever.
-    # Instead, we test the inner handler logic by extracting it.
-    # Let's simulate what main() does: it creates Application, starts background tasks,
-    # then enters a serve loop. We can test the handler closure by calling it directly.
-    # We'll replicate the handler definition and call it.
     async def handler(websocket: websockets.ServerConnection) -> None:
         session_id = await ws_manager.establish(websocket)
         if not session_id:
@@ -87,7 +82,9 @@ async def test_handler_new_session_and_message_loop(mock_parser, mockapp):
         await ws_manager.send("connection:assigned", session_id, {"session_id": session_id})
         try:
             async for raw_msg in websocket:
-                await process_raw_message(raw_msg, session_id, ws_router, ws_manager)
+                await mock_parser(
+                    raw_msg, session_id, ws_router, ws_manager
+                ) 
         except websockets.ConnectionClosed:
             pass
         finally:
