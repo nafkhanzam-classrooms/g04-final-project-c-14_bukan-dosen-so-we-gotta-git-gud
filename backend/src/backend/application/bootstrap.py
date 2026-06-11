@@ -4,15 +4,15 @@ import logging
 from classroom.application.classroom_service import ClassroomService
 from classroom.interface.classroom_handler import ClassroomHandler
 from classroom.repository.classroom_repository import ClassroomRedisRepository
-from slides.application.slide_service import SlideService
-from slides.interface.slide_handler import SlideHandler
-from slides.repository.slide_repository import SlideRedisRepository
 from redis.asyncio import Redis
 from shared.application.room.broadcast import RoomBroadcastService
 from shared.infrastructure.redis.event_bus import RedisEventBus
 from shared.infrastructure.room.in_memory_registry import InMemoryRoomRegistry
 from shared.infrastructure.websocket.manager import WSConnectionManager
 from shared.infrastructure.websocket.router import WSEventRouter
+from slides.application.slide_service import SlideService
+from slides.interface.slide_handler import SlideHandler
+from slides.repository.slide_repository import SlideRedisRepository
 
 from application.event_handlers import RoomEventHandler
 
