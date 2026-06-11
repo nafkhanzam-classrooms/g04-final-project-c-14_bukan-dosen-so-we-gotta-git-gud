@@ -53,7 +53,7 @@ COPY src/ ./src/
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app/src
+    PYTHONPATH=/app
 
 RUN mkdir -p /app/public/slides && chown -R nobody /app/public
 
