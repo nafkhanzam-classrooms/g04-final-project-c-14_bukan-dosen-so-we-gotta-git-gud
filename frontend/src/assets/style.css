@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply bg-zinc-950 text-neutral-200 antialiased selection:bg-zinc-700 selection:text-neutral-50;
+    margin: 0;
+    height: 100vh;
+  }
+  
+  #app {
+    @apply h-full;
+  }
+}
