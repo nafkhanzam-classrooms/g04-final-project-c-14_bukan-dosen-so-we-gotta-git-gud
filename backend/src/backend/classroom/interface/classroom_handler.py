@@ -49,6 +49,8 @@ class ClassroomHandler:
 
             await self.service.create_room(host_id=session_id, class_code=data.class_code)
 
+            await self.room_registry.add_participant(data.class_code, session_id)
+
             await self.ws_manager.send(
                 event="classroom:created",
                 session_id=session_id,
