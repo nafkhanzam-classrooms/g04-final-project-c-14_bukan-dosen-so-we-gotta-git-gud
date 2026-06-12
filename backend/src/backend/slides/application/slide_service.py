@@ -23,3 +23,4 @@ class SlideService:
             raise PermissionError("Only Host is allowed to change the slide.")
 
         await self.repo.update_current_slide(class_code, slide_number)
+        logger.info("Slide changed to %d in class %s by %s", slide_number, class_code, session_id)

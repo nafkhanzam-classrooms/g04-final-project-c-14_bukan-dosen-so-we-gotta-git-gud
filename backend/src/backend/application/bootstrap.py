@@ -17,6 +17,8 @@ from slides.repository.slide_repository import SlideRedisRepository
 from application.config import settings
 from application.event_handlers import RoomEventHandler
 
+logger = logging.getLogger(__name__)
+
 
 class Application:
     def __init__(self) -> None:
@@ -57,9 +59,10 @@ class Application:
     async def start_background_tasks(self) -> None:
         try:
             await self.redis.ping()
-            logging.info("Redis connection established successfully.")
+            logger.info("Redis connection established successfully.")
         except Exception as e:
-            logging.error(f"Redis connection failed: {e}")
+            logger.error("Redis connection failed: %s", e)
             raise
 
         asyncio.create_task(self.event_bus.subscribe("room_events", self.event_handler))
+        logger.info("Background tasks started (Redis subscriber for 'room_events').")
