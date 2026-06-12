@@ -3,6 +3,11 @@ import logging
 from gamification.application.gamification_service import GamificationService
 from quiz.domain.host_provider import HostProvider
 from quiz.domain.repository_interface import QuizRepository
+from quiz.domain.response import (
+    QuizAnswerReceivedResponse,
+    QuizStartedResponse,
+    QuizStoppedResponse,
+)
 from shared.application.room.broadcast import RoomBroadcastService
 
 logger = logging.getLogger(__name__)
@@ -38,10 +43,15 @@ class QuizService:
         await self.quiz_repo.start_quiz(class_code, question_id, options)
         logger.info(f"Quiz started: class={class_code}, question={question_id}, options={options}")
 
+        response = QuizStartedResponse(
+            class_code=class_code,
+            question_id=question_id,
+            options=options,
+        )
         await self.broadcast.broadcast(
             class_code=class_code,
             event="quiz:started",
-            data={"question_id": question_id, "options": options},
+            data=response.model_dump(),
         )
 
     async def answer_quiz(
@@ -61,10 +71,15 @@ class QuizService:
         answers_count = len(await self.quiz_repo.get_answers(class_code, question_id))
         logger.info(f"Answer recorded: {student_id} -> {answer} (total answered: {answers_count})")
 
+        response = QuizAnswerReceivedResponse(
+            class_code=class_code,
+            question_id=question_id,
+            total_answered=answers_count,
+        )
         await self.broadcast.broadcast(
             class_code=class_code,
             event="quiz:answer_received",
-            data={"total_answered": answers_count},
+            data=response.model_dump(),
         )
 
     async def stop_quiz(self, session_id: str, class_code: str, question_id: str) -> None:
@@ -76,8 +91,11 @@ class QuizService:
         await self.quiz_repo.stop_quiz(class_code, question_id)
         logger.info(f"Quiz stopped: class={class_code}, question={question_id}")
 
+        response = QuizStoppedResponse(class_code=class_code, question_id=question_id)
         await self.broadcast.broadcast(
-            class_code=class_code, event="quiz:stopped", data={"question_id": question_id}
+            class_code=class_code,
+            event="quiz:stopped",
+            data=response.model_dump(),
         )
 
     async def close_quiz(

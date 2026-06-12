@@ -3,6 +3,7 @@ from typing import Any
 
 from classroom.application.classroom_service import ClassroomService
 from shared.application.room.broadcast import RoomBroadcastService
+from slides.domain.response import SlidesReadyResponse
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +36,11 @@ class RoomEventHandler:
         success = await self.classroom_service.set_total_slides(class_code, total_slides)
         if success:
             logger.info("slides:ready processed for class %s (total=%d)", class_code, total_slides)
+            response = SlidesReadyResponse(total_slides=total_slides)
             await self.broadcast_service.broadcast(
-                class_code=class_code, event="slides:ready", data={"total_slides": total_slides}
+                class_code=class_code,
+                event="slides:ready",
+                data=response.model_dump(),
             )
         else:
             logger.warning("Failed to set total_slides for class %s", class_code)

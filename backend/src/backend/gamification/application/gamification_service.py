@@ -2,7 +2,9 @@ import logging
 from typing import Any
 
 from gamification.domain.repository_interface import GamificationRepository
+from gamification.domain.response import GameScoreUpdateResponse
 from gamification.domain.student_provider import StudentInfoProvider
+from quiz.domain.response import QuizClosedResponse
 from shared.application.room.broadcast import RoomBroadcastService
 from shared.infrastructure.websocket.manager import WSConnectionManager
 
@@ -70,33 +72,31 @@ class GamificationService:
                     new_total,
                 )
 
+                update = GameScoreUpdateResponse(
+                    class_code=class_code,
+                    points_earned=points_earned,
+                    base_points=self.base_score,
+                    streak_bonus=bonus,
+                    current_streak=new_streak,
+                    total_score=int(new_total),
+                )
                 await self._ws_manager.send(
-                    "game:score_update",
-                    student_id,
-                    {
-                        "class_code": class_code,
-                        "points_earned": points_earned,
-                        "base_points": self.base_score,
-                        "streak_bonus": bonus,
-                        "current_streak": new_streak,
-                        "total_score": new_total,
-                    },
+                    "game:score_update", student_id, data=update.model_dump()
                 )
             else:
                 # Wrong answer: reset streak, keep total, send update
                 await self._repo.set_streak(class_code, student_id, 0)
                 logger.debug("Student %s wrong: streak reset", student_id)
+                update = GameScoreUpdateResponse(
+                    class_code=class_code,
+                    points_earned=0,
+                    base_points=0,
+                    streak_bonus=0,
+                    current_streak=0,
+                    total_score=int(old_total),
+                )
                 await self._ws_manager.send(
-                    "game:score_update",
-                    student_id,
-                    {
-                        "class_code": class_code,
-                        "points_earned": 0,
-                        "base_points": 0,
-                        "streak_bonus": 0,
-                        "current_streak": 0,
-                        "total_score": old_total,
-                    },
+                    "game:score_update", student_id, data=update.model_dump()
                 )
 
         # 2. Penalise inactivity
@@ -112,31 +112,30 @@ class GamificationService:
                 logger.debug(
                     "Student %s did not answer - streak reset from %d to 0", sid, current_streak
                 )
-                await self._ws_manager.send(
-                    "game:score_update",
-                    sid,
-                    {
-                        "class_code": class_code,
-                        "points_earned": 0,
-                        "base_points": 0,
-                        "streak_bonus": 0,
-                        "current_streak": 0,
-                        "total_score": old_total,
-                    },
+                update = GameScoreUpdateResponse(
+                    class_code=class_code,
+                    points_earned=0,
+                    base_points=0,
+                    streak_bonus=0,
+                    current_streak=0,
+                    total_score=int(old_total),
                 )
+                await self._ws_manager.send("game:score_update", sid, data=update.model_dump())
             else:
                 # Streak already 0
                 logger.debug("Student %s did not answer, streak already 0", sid)
 
         # 3. Broadcast quiz:closed
+        response = QuizClosedResponse(
+            class_code=class_code,
+            question_id=question_id,
+            correct_answer=correct_answer,
+            stats=stats,
+        )
         await self._broadcast.broadcast(
             class_code,
             "quiz:closed",
-            {
-                "question_id": question_id,
-                "correct_answer": correct_answer,
-                "stats": stats,
-            },
+            data=response.model_dump(),
         )
         logger.info("quiz:closed broadcast for class %s", class_code)
 
