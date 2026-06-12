@@ -54,7 +54,11 @@ async def test_start_quiz_success(service, mock_quiz_repo, mock_host_provider, m
     mock_broadcast.broadcast.assert_called_once_with(
         class_code=class_code,
         event="quiz:started",
-        data={"question_id": question_id, "options": options},
+        data={
+            "class_code": class_code,
+            "question_id": question_id,
+            "options": options,
+        },
     )
 
 
@@ -87,8 +91,14 @@ async def test_answer_quiz_success(service, mock_quiz_repo, mock_broadcast):
     await service.answer_quiz(student_id, class_code, question_id, answer)
 
     mock_quiz_repo.add_answer.assert_called_once_with(class_code, question_id, student_id, answer)
-    mock_broadcast.broadcast.assert_called_with(
-        class_code=class_code, event="quiz:answer_received", data={"total_answered": 1}
+    mock_broadcast.broadcast.assert_called_once_with(
+        class_code=class_code,
+        event="quiz:answer_received",
+        data={
+            "class_code": class_code,
+            "question_id": question_id,
+            "total_answered": 1,
+        },
     )
 
 
@@ -123,7 +133,12 @@ async def test_stop_quiz_success(service, mock_host_provider, mock_quiz_repo, mo
 
     mock_quiz_repo.stop_quiz.assert_called_once_with(class_code, question_id)
     mock_broadcast.broadcast.assert_called_once_with(
-        class_code=class_code, event="quiz:stopped", data={"question_id": question_id}
+        class_code=class_code,
+        event="quiz:stopped",
+        data={
+            "class_code": class_code,
+            "question_id": question_id,
+        },
     )
 
 

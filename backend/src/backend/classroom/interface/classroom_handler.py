@@ -7,6 +7,13 @@ from classroom.domain.class_payload import (
     EndClassroomPayload,
     JoinClassroomPayload,
 )
+from classroom.domain.response import (
+    ClassroomCreatedResponse,
+    ClassroomEndedResponse,
+    ClassroomErrorResponse,
+    ClassroomJoinedResponse,
+    TopStudentResponse,
+)
 from gamification.application.gamification_service import GamificationService
 from quiz.application.quiz_service import QuizService
 from shared.application.room.broadcast import RoomBroadcastService
@@ -68,10 +75,12 @@ class ClassroomHandler:
 
             await self.room_registry.add_participant(data.class_code, session_id)
 
+            response_data = ClassroomCreatedResponse(class_code=data.class_code)
+
             await self.ws_manager.send(
                 event="classroom:created",
                 session_id=session_id,
-                data={"class_code": data.class_code, "status": "success"},
+                data=response_data.model_dump(),
             )
         except ValueError as e:
             logger.warning(f"Validation error on room creation (Session: {session_id}): {e}")
@@ -86,18 +95,15 @@ class ClassroomHandler:
         try:
             data = JoinClassroomPayload.model_validate(payload)
 
-            student_state = await self.service.join_room(
-                student_id=session_id,
-                student_name=data.student_name,
-                class_code=data.class_code,
-            )
-
             await self.room_registry.add_participant(data.class_code, session_id)
 
+            response = ClassroomJoinedResponse(
+                class_code=data.class_code, student_name=data.student_name
+            )
             await self.ws_manager.send(
                 event="classroom:joined",
                 session_id=session_id,
-                data={"class_code": data.class_code, "student": student_state.model_dump()},
+                data=response.model_dump(),
             )
         except ValueError as e:
             logger.warning(f"Validation error on room join (Session: {session_id}): {e}")
@@ -125,10 +131,11 @@ class ClassroomHandler:
         logger.info(f"Class state '{class_code}' successfully synced for session '{session_id}'.")
 
     async def _send_error(self, session_id: str, error_message: str) -> None:
+        response = ClassroomErrorResponse(message=error_message)
         await self.ws_manager.send(
             event="classroom:error",
             session_id=session_id,
-            data={"message": error_message},
+            data=response.model_dump(),
         )
 
     async def _handle_end(self, session_id: str, payload: dict[str, Any]) -> None:
@@ -145,10 +152,13 @@ class ClassroomHandler:
             top_students = await self.gamification_service.get_formatted_leaderboard(class_code)
 
             # 3. Broadcast termination event to all participants
+            top = [TopStudentResponse.model_validate(student) for student in top_students]
+
+            response = ClassroomEndedResponse(class_code=class_code, top_students=top)
             await self.broadcast_service.broadcast(
                 class_code=class_code,
                 event="classroom:ended",
-                data={"class_code": class_code, "top_students": top_students},
+                data=response.model_dump(),
             )
 
             # 4. Clean up distributed Redis data

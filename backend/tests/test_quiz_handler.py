@@ -43,10 +43,10 @@ async def test_handle_start_validation_error(handler, mock_service, mock_ws_mana
     await call_handler(handler, "quiz:start", "host1", payload)
     mock_service.start_quiz.assert_not_called()
     mock_ws_manager.send.assert_called_once()
-    args, _ = mock_ws_manager.send.call_args
-    assert args[0] == "quiz:error"
-    assert args[1] == "host1"
-    assert "question_id" in args[2]["message"]
+    call_args = mock_ws_manager.send.call_args
+    assert call_args.args[0] == "quiz:error"
+    assert call_args.args[1] == "host1"
+    assert "question_id" in call_args.kwargs["data"]["message"]
 
 
 @pytest.mark.asyncio
@@ -75,8 +75,10 @@ async def test_permission_error_triggers_error_message(handler, mock_service, mo
     mock_service.start_quiz.side_effect = PermissionError("Only host can start a quiz.")
     payload = {"class_code": "MATH123", "question_id": "q1", "options": ["A", "B"]}
     await call_handler(handler, "quiz:start", "not_host", payload)
-    mock_ws_manager.send.assert_called_with(
-        "quiz:error", "not_host", {"message": "Only host can start a quiz."}
+    mock_ws_manager.send.assert_called_once_with(
+        "quiz:error",
+        "not_host",
+        data={"message": "Only host can start a quiz."},
     )
 
 
@@ -85,8 +87,10 @@ async def test_value_error_triggers_error_message(handler, mock_service, mock_ws
     mock_service.answer_quiz.side_effect = ValueError("Quiz is not active.")
     payload = {"class_code": "MATH123", "question_id": "q1", "answer": "A"}
     await call_handler(handler, "quiz:answer", "stu1", payload)
-    mock_ws_manager.send.assert_called_with(
-        "quiz:error", "stu1", {"message": "Quiz is not active."}
+    mock_ws_manager.send.assert_called_once_with(
+        "quiz:error",
+        "stu1",
+        data={"message": "Quiz is not active."},
     )
 
 
@@ -104,6 +108,8 @@ async def test_internal_exception_returns_generic_error(handler, mock_service, m
     mock_service.start_quiz.side_effect = Exception("Boom")
     payload = {"class_code": "MATH123", "question_id": "q1", "options": ["A", "B"]}  # valid
     await call_handler(handler, "quiz:start", "host1", payload)
-    mock_ws_manager.send.assert_called_with(
-        "quiz:error", "host1", {"message": "Internal server error"}
+    mock_ws_manager.send.assert_called_once_with(
+        "quiz:error",
+        "host1",
+        data={"message": "Internal server error"},
     )

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 from shared.application.room.broadcast import RoomBroadcastService
 from shared.infrastructure.websocket.manager import WSConnectionManager
 from slides.application.slide_service import SlideService
+from slides.domain.response import SlidesChangedResponse, SlidesErrorResponse
 from slides.domain.slide_payload import ChangeSlidePayload
 
 if TYPE_CHECKING:
@@ -42,10 +43,11 @@ class SlideHandler:
                 session_id=session_id, class_code=data.class_code, slide_number=data.slide_number
             )
 
+            response = SlidesChangedResponse(slide_number=data.slide_number)
             await self.broadcast_service.broadcast(
                 class_code=data.class_code,
                 event="slides:changed",
-                data={"slide_number": data.slide_number},
+                data=response.model_dump(),
             )
 
             logger.info(
@@ -56,15 +58,18 @@ class SlideHandler:
             )
 
         except PermissionError as e:
-            logger.warning("Permission error for session %s: %s", session_id, e)
-            await self.ws_manager.send("slides:error", session_id, {"message": str(e)})
-
+            await self.ws_manager.send(
+                "slides:error", session_id, data=SlidesErrorResponse(message=str(e)).model_dump()
+            )
         except ValueError as e:
-            logger.warning("Value error for session %s: %s", session_id, e)
-            await self.ws_manager.send("slides:error", session_id, {"message": str(e)})
+            await self.ws_manager.send(
+                "slides:error", session_id, data=SlidesErrorResponse(message=str(e)).model_dump()
+            )
 
         except Exception:
             logger.exception("Unexpected error in slide change handler for session %s", session_id)
             await self.ws_manager.send(
-                "slides:error", session_id, {"message": "Internal server error"}
+                "slides:error",
+                session_id,
+                data=SlidesErrorResponse(message="Internal server error").model_dump(),
             )
