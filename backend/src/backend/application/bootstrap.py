@@ -4,6 +4,9 @@ import logging
 from classroom.application.classroom_service import ClassroomService
 from classroom.interface.classroom_handler import ClassroomHandler
 from classroom.repository.classroom_repository import ClassroomRedisRepository
+from gamification.application.gamification_service import GamificationService
+from gamification.infrastructure.classroom_student_provider import ClassroomStudentInfoProvider
+from gamification.repository.gamification_repository import GamificationRedisRepository
 from quiz.application.quiz_service import QuizService
 from quiz.interface.quiz_handler import QuizHandler
 from quiz.repository.host_provider_implementation import SlideHostProvider
@@ -37,12 +40,29 @@ class Application:
         slide_repo = SlideRedisRepository(self.redis)
         quiz_repo = QuizRedisRepository(self.redis)
         host_provider = SlideHostProvider(slide_repo)
+        gamification_repo = GamificationRedisRepository(self.redis)
 
         # Services
         self.classroom_service = ClassroomService(classroom_repo)
         self.broadcast_service = RoomBroadcastService(self.room_registry, self.ws_manager)
         self.slide_service = SlideService(slide_repo)
-        self.quiz_service = QuizService(quiz_repo, host_provider, self.broadcast_service)
+
+        student_info_provider = ClassroomStudentInfoProvider(self.classroom_service)
+        self.gamification_service = GamificationService(
+            repo=gamification_repo,
+            student_info_provider=student_info_provider,
+            ws_manager=self.ws_manager,
+            broadcast_service=self.broadcast_service,
+            base_score=settings.gamification_base_score,
+            streak_multiplier=settings.gamification_streak_multiplier,
+        )
+
+        self.quiz_service = QuizService(
+            quiz_repo,
+            host_provider,
+            self.broadcast_service,
+            self.gamification_service,
+        )
 
         # Handlers
         self.classroom_handler = ClassroomHandler(

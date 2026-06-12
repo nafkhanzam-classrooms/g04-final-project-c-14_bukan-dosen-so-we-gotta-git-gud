@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock
 
 import pytest
+from gamification.application.gamification_service import GamificationService
 from quiz.application.quiz_service import QuizService
 from quiz.domain.host_provider import HostProvider
 from quiz.domain.repository_interface import QuizRepository
@@ -23,15 +24,20 @@ def mock_broadcast():
 
 
 @pytest.fixture
-def service(mock_quiz_repo, mock_host_provider, mock_broadcast):
+def mock_gamification():
+    return AsyncMock(spec=GamificationService)
+
+
+@pytest.fixture
+def service(mock_quiz_repo, mock_host_provider, mock_broadcast, mock_gamification):
     return QuizService(
         quiz_repo=mock_quiz_repo,
         host_provider=mock_host_provider,
         broadcast=mock_broadcast,
+        gamification=mock_gamification,
     )
 
 
-# quiz:start tests
 @pytest.mark.asyncio
 async def test_start_quiz_success(service, mock_quiz_repo, mock_host_provider, mock_broadcast):
     session_id = "host123"
@@ -67,7 +73,6 @@ async def test_start_quiz_already_active(service, mock_host_provider, mock_quiz_
         await service.start_quiz("host1", "MATH123", "q1", ["A"])
 
 
-# quiz:answer tests
 @pytest.mark.asyncio
 async def test_answer_quiz_success(service, mock_quiz_repo, mock_broadcast):
     class_code = "MATH123"
@@ -76,8 +81,8 @@ async def test_answer_quiz_success(service, mock_quiz_repo, mock_broadcast):
     answer = "B"
 
     mock_quiz_repo.is_active.return_value = True
-    mock_quiz_repo.add_answer.return_value = True  # first answer
-    mock_quiz_repo.get_answers.return_value = {"stu1": "B"}  # 1 answer
+    mock_quiz_repo.add_answer.return_value = True
+    mock_quiz_repo.get_answers.return_value = {"stu1": "B"}
 
     await service.answer_quiz(student_id, class_code, question_id, answer)
 
@@ -97,18 +102,15 @@ async def test_answer_quiz_inactive(service, mock_quiz_repo):
 @pytest.mark.asyncio
 async def test_answer_quiz_duplicate_ignored(service, mock_quiz_repo, mock_broadcast):
     mock_quiz_repo.is_active.return_value = True
-    mock_quiz_repo.add_answer.return_value = False  # duplicate
+    mock_quiz_repo.add_answer.return_value = False
     mock_quiz_repo.get_answers.return_value = {"stu1": "B"}
 
-    # Should not raise, and broadcast still called with correct count
     await service.answer_quiz("stu1", "MATH123", "q1", "C")
 
     mock_quiz_repo.add_answer.assert_called_once_with("MATH123", "q1", "stu1", "C")
-
     mock_broadcast.broadcast.assert_not_called()
 
 
-# quiz:stop tests
 @pytest.mark.asyncio
 async def test_stop_quiz_success(service, mock_host_provider, mock_quiz_repo, mock_broadcast):
     session_id = "host1"
@@ -132,32 +134,34 @@ async def test_stop_quiz_unauthorized(service, mock_host_provider):
         await service.stop_quiz("not_host", "MATH123", "q1")
 
 
-# quiz:close tests
 @pytest.mark.asyncio
-async def test_close_quiz_success(service, mock_host_provider, mock_quiz_repo, mock_broadcast):
+async def test_close_quiz_delegates_to_gamification_and_cleans_up(
+    service, mock_host_provider, mock_quiz_repo, mock_broadcast, mock_gamification
+):
+    """close_quiz now hands off to gamification and no longer broadcasts quiz:closed directly."""
     session_id = "host1"
     class_code = "MATH123"
     question_id = "q1"
     correct_answer = "B"
 
     mock_host_provider.get_host.return_value = session_id
-    # Return answers to calculate stats
     mock_quiz_repo.get_answers.return_value = {"s1": "A", "s2": "B", "s3": "B"}
 
     await service.close_quiz(session_id, class_code, question_id, correct_answer)
 
-    # close_quiz called with correct_answer
-    mock_quiz_repo.close_quiz.assert_called_once_with(class_code, question_id, correct_answer)
+    # Verify gamification was called with correct arguments
     expected_stats = {"A": 1, "B": 2}
-    mock_broadcast.broadcast.assert_called_once_with(
+    mock_gamification.process_quiz_close.assert_called_once_with(
         class_code=class_code,
-        event="quiz:closed",
-        data={
-            "question_id": question_id,
-            "correct_answer": correct_answer,
-            "stats": expected_stats,
-        },
+        question_id=question_id,
+        correct_answer=correct_answer,
+        answers={"s1": "A", "s2": "B", "s3": "B"},
+        stats=expected_stats,
     )
+    # Quiz data is deleted
+    mock_quiz_repo.close_quiz.assert_called_once_with(class_code, question_id, correct_answer)
+    # No direct broadcast of quiz:closed from QuizService
+    mock_broadcast.broadcast.assert_not_called()
 
 
 @pytest.mark.asyncio
