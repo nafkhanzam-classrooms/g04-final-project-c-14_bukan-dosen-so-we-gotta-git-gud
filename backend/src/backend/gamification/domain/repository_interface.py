@@ -26,3 +26,6 @@ class GamificationRepository(ABC):
     async def get_leaderboard(self, class_code: str, top_n: int = 10) -> list[tuple[str, float]]:
         """Return top_n entries as (student_id, score) descending."""
         ...
+
+    @abstractmethod
+    async def delete_gamification_data(self, class_code: str) -> None: ...

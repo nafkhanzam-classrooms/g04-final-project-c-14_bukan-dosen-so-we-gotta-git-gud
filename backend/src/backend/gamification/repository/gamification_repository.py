@@ -45,3 +45,7 @@ class GamificationRedisRepository(GamificationRepository):
         # Ensure proper typing: zrevrange returns list of tuples
         typed_result: list[tuple[str, float]] = cast("list[tuple[str, float]]", result)
         return typed_result
+
+    async def delete_gamification_data(self, class_code: str) -> None:
+        await self._redis.delete(self._streaks_key(class_code), self._leaderboard_key(class_code))
+        logger.debug("Gamification Redis data deleted for room %s", class_code)

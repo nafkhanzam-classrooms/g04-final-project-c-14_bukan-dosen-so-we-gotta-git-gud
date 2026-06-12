@@ -44,3 +44,7 @@ class ClassroomRedisRepository(ClassroomRepository):
         data = await self.redis.hgetall(key)
         logger.debug("Fetched %d students for room %s", len(data), class_code)
         return cast("dict[str, str]", data)
+
+    async def delete_room_data(self, class_code: str) -> None:
+        await self.redis.delete(f"room:{class_code}", f"room:{class_code}:students")
+        logger.debug("Classroom Redis data deleted for room %s", class_code)

@@ -68,3 +68,16 @@ class QuizRedisRepository(QuizRepository):
         if opts:
             return cast("list[str]", json.loads(opts))
         return None
+
+    async def delete_all_class_data(self, class_code: str) -> None:
+        # Use SCAN to safely find and delete any lingering quiz keys for this class
+        cursor = 0
+        pattern = f"quiz:{class_code}:*"
+        while True:
+            cursor, keys = await self.redis.scan(cursor=cursor, match=pattern)
+            if keys:
+                await self.redis.delete(*keys)
+
+            if int(cursor) == 0:
+                break
+        logger.debug("All quiz Redis data deleted for room %s", class_code)

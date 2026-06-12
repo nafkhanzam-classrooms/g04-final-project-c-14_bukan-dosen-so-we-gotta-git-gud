@@ -37,3 +37,19 @@ async def test_remove_participant_by_session(registry):
 async def test_remove_nonexistent_no_error(registry):
     await registry.remove_participant("ghost", "sessX")
     await registry.remove_participant_by_session("sessY")
+
+
+@pytest.mark.asyncio
+async def test_remove_all_participants(registry):
+    class_code = "MATH123"
+
+    await registry.add_participant(class_code, "student_1")
+    await registry.add_participant(class_code, "student_2")
+
+    assert await registry.get_room_by_session("student_1") == class_code
+    assert len(await registry.get_participants(class_code)) == 2
+
+    await registry.remove_all_participants(class_code)
+
+    assert await registry.get_room_by_session("student_1") is None
+    assert len(await registry.get_participants(class_code)) == 0
