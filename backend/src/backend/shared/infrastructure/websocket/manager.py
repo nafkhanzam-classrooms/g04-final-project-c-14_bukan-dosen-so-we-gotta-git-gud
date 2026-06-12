@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 class WSConnectionManager:
     def __init__(self) -> None:
         self._connections: dict[str, websockets.ServerConnection] = {}
+        self._error_counts: dict[str, int] = {}
 
     async def register(self, session_id: str, websocket: websockets.ServerConnection) -> None:
         # 1. Duplicate Login
@@ -68,3 +69,18 @@ class WSConnectionManager:
         await self.register(session_id, websocket)
 
         return session_id
+
+    def record_error(self, session_id: str) -> int:
+        current = self._error_counts.get(session_id, 0) + 1
+        self._error_counts[session_id] = current
+        return current
+
+    def reset_error(self, session_id: str) -> None:
+        if session_id in self._error_counts:
+            self._error_counts[session_id] = 0
+
+    async def kick(self, session_id: str, reason: str) -> None:
+        websocket = self._connections.get(session_id)
+        if websocket:
+            logger.warning(f"Kicking session {session_id}: {reason}")
+            await websocket.close(code=1008, reason=reason)
