@@ -22,6 +22,12 @@ class WSConnectionManager:
             )
             old_ws = self._connections[session_id]
             with contextlib.suppress(websockets.ConnectionClosed):
+                envelope = WSMessage(
+                    event="connection:replaced",
+                    data={"message": "Session taken over by another device."},
+                )
+                await old_ws.send(envelope.model_dump_json())
+
                 await old_ws.close(code=4000, reason="Session replaced by a new connection")
 
         # 2. Normal scenario + could also be used for reconnect
