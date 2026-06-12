@@ -8,7 +8,7 @@ const username = ref('')
 
 const joinRoom = () => {
   if (roomCode.value && username.value) {
-    router.push(`/room/${roomCode.value.toUpperCase()}`)
+    router.push(`/room/${roomCode.value.toUpperCase()}?studentName=${encodeURIComponent(username.value)}`)
   }
 }
 </script>

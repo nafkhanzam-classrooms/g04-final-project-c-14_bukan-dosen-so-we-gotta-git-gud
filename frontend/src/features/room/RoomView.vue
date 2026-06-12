@@ -1,36 +1,105 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useClassroomStore } from '@/shared/stores/classroom'
+import { storeToRefs } from 'pinia'
 import LeaderboardPanel from './components/LeaderboardPanel.vue'
 import QuizPanel from './components/QuizPanel.vue'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || ''
 const route = useRoute()
 const router = useRouter()
 const roomId = route.params.roomId as string
 const isHost = route.query.role === 'host'
+const store = useClassroomStore()
+const { currentSlide, totalSlides, isSlidesReady } = storeToRefs(store)
 
-// Room 4 Phase State Machine
 type SessionPhase = 'upload' | 'present' | 'quiz' | 'ended'
 const phase = ref<SessionPhase>(isHost ? 'upload' : 'present')
 
-// Modal State
+watch(isSlidesReady, (ready) => {
+  if (ready && phase.value === 'upload') {
+    phase.value = 'present'
+  }
+})
+
+onMounted(() => {
+  const studentName = route.query.studentName as string || 'Student'
+  store.connect(roomId, isHost ? 'host' : 'student', isHost ? 'Teacher' : studentName)
+})
+
+onUnmounted(() => {
+  store.disconnect()
+})
+
+
 const showEndSessionModal = ref(false)
-
-// Upload State
 const fileToUpload = ref<File | null>(null)
-const handleFileUpload = (e: Event) => {
-  const target = e.target as HTMLInputElement
-  if (target.files && target.files.length > 0) {
-    const file = target.files[0]
-    if (file) {
-      fileToUpload.value = file
+const isUploading = ref(false)
 
-      // TODO: Call worker to process file and prepare presentation data
+const handleFileUpload = (e: Event) => {
+  const target = e.target as HTMLInputElement;
+  if (target.files && target.files.length > 0) {
+    const file = target.files[0];
+    if (file) {
+      console.log('File selected:', file.name, file.size);
+      fileToUpload.value = file;
     }
+  } else {
+    console.log('No file selected');
   }
 }
-const startPresentation = () => {
-  phase.value = 'present'
+
+const startPresentation = async () => {
+  if (!fileToUpload.value) return
+  isUploading.value = true
+
+  const formData = new FormData()
+  formData.append('file', fileToUpload.value)
+
+  const ext = fileToUpload.value.name.split('.').pop()?.toLowerCase()
+  if (ext !== 'pdf' && ext !== 'pptx') {
+    alert('Only PDF or PPTX files are supported')
+    isUploading.value = false
+    return
+  }
+
+  try {
+    // debug log to verify correct URL construction
+    const url = `${API_BASE_URL}/upload/${roomId}/${ext}`;
+    console.log('Uploading to:', url);
+    const response = await fetch(`${API_BASE_URL}/upload/${roomId}/${ext}`, {
+      method: 'POST',
+      body: fileToUpload.value,
+      headers: {
+        'Content-Type': 'application/octet-stream'
+      }
+    })
+    if (!response.ok) throw new Error('Upload failed')
+  } catch (error) {
+    console.error("Failed to upload presentation:", error)
+    alert("Failed to process presentation.")
+  } finally {
+    isUploading.value = false
+  }
+}
+
+const nextSlide = () => {
+  if (currentSlide.value < totalSlides.value) {
+    store.send('slides:change', {
+      class_code: roomId,
+      slide_number: currentSlide.value + 1
+    })
+  }
+}
+
+const prevSlide = () => {
+  if (currentSlide.value > 1) {
+    store.send('slides:change', {
+      class_code: roomId,
+      slide_number: currentSlide.value - 1
+    })
+  }
 }
 
 // Quiz State
@@ -138,10 +207,11 @@ const sortedStudents = computed(() => {
           
           <div v-if="fileToUpload">
             <button 
-              @click="startPresentation"
-              class="w-full bg-neutral-100 text-zinc-950 font-bold py-4 rounded-xl hover:bg-neutral-300 transition shadow-lg"
+                @click="startPresentation"
+                :disabled="isUploading"
+                class="w-full bg-neutral-100 text-zinc-950 font-bold py-4 rounded-xl hover:bg-neutral-300 transition shadow-lg disabled:opacity-50"
             >
-              Start Class
+              {{ isUploading ? 'Processing File...' : 'Start Class' }}
             </button>
           </div>
         </div>
@@ -157,25 +227,31 @@ const sortedStudents = computed(() => {
 
       <template v-else>
         <div class="flex-1 flex items-center justify-center p-6 lg:p-10 overflow-hidden relative">
-          <div class="w-full h-full max-w-6xl bg-black border border-zinc-800 rounded-xl shadow-2xl flex items-center justify-center aspect-video relative">
-            <p class="text-zinc-600 font-medium text-lg">Slide Container</p>
-            
-            <QuizPanel 
-              v-if="phase === 'quiz'" 
-              :is-host="isHost" 
-              :quiz-type="quizType" 
-              @close-quiz="endQuiz" 
-            />
-          </div>
+            <div class="w-full h-full max-w-6xl bg-black border border-zinc-800 rounded-xl shadow-2xl flex items-center justify-center aspect-video relative">
+                <img 
+                    v-if="totalSlides > 0" 
+                    :src="`${API_BASE_URL}/slides/${roomId}/slide-${currentSlide}.webp`" 
+                    class="w-full h-full object-contain"
+                    alt="Presentation Slide"
+                />
+                <p v-else class="text-zinc-600 font-medium text-lg">Loading slides...</p>
+                
+                <QuizPanel 
+                    v-if="phase === 'quiz'" 
+                    :is-host="isHost" 
+                    :quiz-type="quizType" 
+                    @close-quiz="endQuiz" 
+                />
+            </div>
         </div>
 
         <footer v-if="isHost" class="h-20 border-t border-zinc-800 bg-zinc-900/80 flex items-center justify-between px-6 z-20">
           <div class="flex gap-2">
-            <button class="w-10 h-10 flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 rounded-lg text-neutral-300 transition">
-              &larr;
+              <button @click="prevSlide" class="w-10 h-10 flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 rounded-lg text-neutral-300 transition">
+                &larr;
             </button>
-            <button class="w-10 h-10 flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 rounded-lg text-neutral-300 transition">
-              &rarr;
+            <button @click="nextSlide" class="w-10 h-10 flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 rounded-lg text-neutral-300 transition">
+                &rarr;
             </button>
           </div>
           
