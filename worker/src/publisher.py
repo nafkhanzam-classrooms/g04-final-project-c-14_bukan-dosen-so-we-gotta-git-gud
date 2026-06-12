@@ -1,6 +1,7 @@
 import logging
 import redis.asyncio as redis
 import os
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -14,8 +15,12 @@ async def publish_slides_ready(class_code: str, output_dir: str) -> None:
         total_slides = len([f for f in os.listdir(output_dir) if f.endswith(".webp")])
 
         # Publish JSON payload to redis
-        payload = f'{{"class_code": "{class_code}", "total_slides": {total_slides}}}'
-        await redis_client.publish("room_events", payload)
+        payload = {
+            "event": "slides:ready",
+            "class_code": class_code,
+            "data": {"total_slides": total_slides}
+        }
+        await redis_client.publish("room_events", json.dumps(payload))
         logger.info(
             f"Published slides_ready for room {class_code}: {total_slides} slides."
         )
