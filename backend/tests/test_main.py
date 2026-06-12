@@ -1,5 +1,5 @@
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import websockets
@@ -11,6 +11,8 @@ from application.message_parser import process_raw_message
 async def test_process_valid_json_dispatches():
     router = AsyncMock()
     manager = AsyncMock()
+    manager.reset_error = MagicMock()
+    manager.record_error = MagicMock()
     payload = {"event": "classroom:create", "data": {"class_code": "X"}}
 
     await process_raw_message(json.dumps(payload), "sess1", router, manager)
@@ -23,6 +25,8 @@ async def test_process_valid_json_dispatches():
 async def test_process_bytes_message():
     router = AsyncMock()
     manager = AsyncMock()
+    manager.reset_error = MagicMock()
+    manager.record_error = MagicMock()
     payload = {"event": "test", "data": {}}
 
     await process_raw_message(json.dumps(payload).encode(), "sess1", router, manager)
@@ -34,10 +38,17 @@ async def test_process_bytes_message():
 async def test_process_invalid_json_sends_error():
     router = AsyncMock()
     manager = AsyncMock()
+    manager.record_error = MagicMock(return_value=1)
+    manager.reset_error = MagicMock()
+    manager.is_tolerance_exceeded = MagicMock(return_value=False)
+    manager.max_error_tolerance = 5
+    manager.kick = AsyncMock()
 
     await process_raw_message("not json", "sess1", router, manager)
 
-    manager.send.assert_called_once_with("error", "sess1", {"message": "Invalid JSON format."})
+    manager.send.assert_called_once_with(
+        "error", "sess1", {"message": "Invalid JSON format. Warning 1/5"}
+    )
     router.dispatch.assert_not_called()
 
 
@@ -45,6 +56,8 @@ async def test_process_invalid_json_sends_error():
 async def test_process_no_event_does_nothing():
     router = AsyncMock()
     manager = AsyncMock()
+    manager.reset_error = MagicMock()
+    manager.record_error = MagicMock()
 
     await process_raw_message('{"data": {}}', "sess1", router, manager)
 

@@ -43,7 +43,6 @@ async def test_classroom_handler_sync_event_sends_state_sync():
         },
     )
 
-
     room_registry.get_room_by_session.return_value = class_code
     service.get_room_state.return_value = room_state
 
@@ -88,7 +87,7 @@ async def test_full_reconnect_flow_sync_after_reconnect(mock_app_class):
     app = mock_app_class.return_value
     ws_manager = app.ws_manager
     ws_manager.establish = AsyncMock(return_value="existing_sess")
-    ws_manager.send = AsyncMock()                 
+    ws_manager.send = AsyncMock()
     ws_manager.unregister = AsyncMock()
     ws_router = app.ws_router
     room_registry = app.room_registry
@@ -103,11 +102,7 @@ async def test_full_reconnect_flow_sync_after_reconnect(mock_app_class):
                 total_slides=10,
                 active_students={},
             )
-            await ws_manager.send(
-                "classroom:state_sync",
-                session_id,
-                room_state.model_dump()    
-            )
+            await ws_manager.send("classroom:state_sync", session_id, room_state.model_dump())
 
     ws_router.dispatch = AsyncMock(side_effect=simulate_sync)
 
@@ -119,7 +114,7 @@ async def test_full_reconnect_flow_sync_after_reconnect(mock_app_class):
 
     from application.message_parser import process_raw_message
 
-    async def handler(websocket):
+    async def handler(websocket: websockets.ServerConnection) -> None:
         session_id = await ws_manager.establish(websocket)
         if not session_id:
             return
@@ -156,6 +151,7 @@ async def test_full_reconnect_flow_sync_after_reconnect(mock_app_class):
     ws_manager.unregister.assert_awaited_once_with("existing_sess")
     room_registry.remove_participant_by_session.assert_awaited_once_with("existing_sess")
 
+
 @pytest.mark.asyncio
 async def test_teacher_reconnect_recovers_host_privileges():
     """
@@ -172,7 +168,7 @@ async def test_teacher_reconnect_recovers_host_privileges():
     class_code = "MATH101"
     room_state = Classroom(
         class_code=class_code,
-        host_session_id=teacher_session_id,   
+        host_session_id=teacher_session_id,
         current_slide=3,
         total_slides=20,
         active_students={"stu1": StudentState(name="Budi")},
