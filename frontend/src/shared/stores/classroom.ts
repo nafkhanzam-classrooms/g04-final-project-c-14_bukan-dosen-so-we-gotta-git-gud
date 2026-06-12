@@ -98,6 +98,10 @@ export const useClassroomStore = defineStore('classroom', () => {
 
   const connect = (roomCode: string, role: 'host' | 'student', username: string = 'Anonymous') => {
     lastError.value = null
+    roomEnded.value = false
+    finalLeaderboard.value = []
+    resetQuiz()
+
     if (socket.value?.readyState === WebSocket.OPEN) return
 
     const wsUrl = import.meta.env.VITE_WS_URL
@@ -244,6 +248,7 @@ export const useClassroomStore = defineStore('classroom', () => {
     currentSlide.value = 1
     totalSlides.value = 0
     lastError.value = null
+    resetQuiz()
   }
 
   const logout = () => {

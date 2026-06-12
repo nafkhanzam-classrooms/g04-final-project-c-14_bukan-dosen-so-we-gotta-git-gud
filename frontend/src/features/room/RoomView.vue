@@ -44,12 +44,6 @@ watch([isSlidesReady, totalSlides], ([ready, slides]) => {
   }
 })
 
-// Trigger perpindahan fase ke ended saat broadcast classroom:ended ditangkap
-watch(roomEnded, (ended) => {
-  if (ended) {
-    phase.value = 'ended'
-  }
-})
 
 onMounted(() => {
   const studentName = route.query.studentName as string || 'Student'
@@ -132,23 +126,19 @@ const prevSlide = () => {
   }
 }
 
-// Quiz state
 const showQuizMenu = ref(false)
 
 const startQuiz = () => {
-  console.log('Starting quiz...')
   phase.value = 'quiz'
-  console.log('Quiz is true...')
   showQuizMenu.value = false
-  console.log('Menu quiz...')
 }
 
 const endQuiz = () => {
-  console.log('Ending quiz...')
-  phase.value = 'present'
+  if (!roomEnded.value) {
+    phase.value = 'present'
+  }
 }
 
-// Session Controls
 const showEndSessionModal = ref(false)
 const promptEndSession = () => { showEndSessionModal.value = true }
 const confirmEndSession = () => {
@@ -163,7 +153,7 @@ const exitClass = () => {
 
 <template>
   <div class="h-screen bg-zinc-950 text-neutral-200 font-sans">
-    <header class="h-16 border-b border-zinc-800 bg-zinc-900/80 flex justify-between items-center px-6 sticky top-0 z-10">
+    <header class="h-16 border-b border-zinc-800 bg-zinc-900/80 flex justify-between items-center px-6 sticky top-0 z-[60]">
       <div class="flex items-center gap-3">
         <span class="text-zinc-400 font-medium">Room:</span>
         <span class="text-xl font-mono font-bold text-neutral-100 bg-zinc-800 px-3 py-1 rounded-md">{{ roomId }}</span>
@@ -172,42 +162,17 @@ const exitClass = () => {
         <div class="px-3 py-1 rounded text-xs font-bold uppercase tracking-wide" :class="isHost ? 'bg-neutral-200 text-zinc-900' : 'bg-zinc-800 text-zinc-300'">
           {{ isHost ? 'Host' : 'Student' }}
         </div>
-        <button v-if="isHost && phase !== 'ended'" @click="promptEndSession" class="px-4 py-1.5 bg-red-900/50 hover:bg-red-900 text-red-200 border border-red-800 rounded-md text-sm font-semibold transition">
+        <button v-if="isHost && !roomEnded" @click="promptEndSession" class="px-4 py-1.5 bg-red-900/50 hover:bg-red-900 text-red-200 border border-red-800 rounded-md text-sm font-semibold transition">
           End Session
         </button>
-        <button v-if="!isHost && phase !== 'ended'" @click="exitClass" class="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-md text-sm font-semibold transition">
+        <button v-if="!isHost && !roomEnded" @click="exitClass" class="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-md text-sm font-semibold transition">
           Exit Class
         </button>
       </div>
     </header>
 
     <div class="h-[calc(100vh-4rem)] overflow-hidden">
-      <div v-if="phase === 'upload' && isHost" class="flex items-center justify-center h-full">
-        <div class="w-full max-w-2xl bg-zinc-900 border-2 border-dashed border-zinc-700 rounded-2xl p-12 text-center">
-          <h2 class="text-3xl font-bold text-neutral-100 mb-4">Upload Presentation</h2>
-          <p class="text-zinc-400 mb-8">Select a .pptx or .pdf file. Conversion may take a few seconds.</p>
-          <div v-if="statusMessage" class="mb-4 p-3 rounded-lg text-sm" :class="{
-            'bg-blue-900/50 text-blue-200': uploadStatus === 'uploading' || uploadStatus === 'converting',
-            'bg-red-900/50 text-red-200': uploadStatus === 'error',
-            'bg-green-900/50 text-green-200': uploadStatus === 'success'
-          }">{{ statusMessage }}</div>
-          <input type="file" accept=".pptx,.pdf" class="hidden" id="file-upload" @change="handleFileUpload" :disabled="uploadStatus === 'uploading' || uploadStatus === 'converting'" />
-          <label for="file-upload" class="cursor-pointer inline-block bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-neutral-200 font-medium py-3 px-6 rounded-lg transition mb-6" :class="{'opacity-50 cursor-not-allowed': uploadStatus === 'uploading' || uploadStatus === 'converting'}">
-            {{ fileToUpload ? fileToUpload.name : 'Choose File' }}
-          </label>
-          <div v-if="uploadStatus === 'error'">
-            <button @click="resetUpload" class="text-sm text-zinc-400 underline mt-2">Try another file</button>
-          </div>
-        </div>
-      </div>
-
-      <div v-else-if="phase === 'upload' && !isHost" class="flex flex-col items-center justify-center h-full">
-        <div class="animate-pulse w-16 h-16 bg-zinc-800 rounded-full mb-6"></div>
-        <h2 class="text-2xl font-bold text-neutral-100">Waiting for Teacher...</h2>
-        <p class="text-zinc-500 mt-2">The presentation material is being prepared.</p>
-      </div>
-
-      <div v-else-if="phase === 'ended'" class="flex flex-col items-center justify-center h-full">
+      <div v-if="roomEnded" class="flex flex-col items-center justify-center h-full">
         <div class="w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden">
           <div class="p-6 text-center border-b border-zinc-800">
             <h1 class="text-3xl font-bold text-neutral-100">Session Ended</h1>
@@ -232,6 +197,31 @@ const exitClass = () => {
         <button @click="router.push('/')" class="mt-8 px-6 py-2 bg-neutral-100 text-zinc-950 rounded-lg font-bold hover:bg-neutral-300 transition">
           ← Go Home
         </button>
+      </div>
+
+      <div v-else-if="phase === 'upload' && isHost" class="flex items-center justify-center h-full">
+        <div class="w-full max-w-2xl bg-zinc-900 border-2 border-dashed border-zinc-700 rounded-2xl p-12 text-center">
+          <h2 class="text-3xl font-bold text-neutral-100 mb-4">Upload Presentation</h2>
+          <p class="text-zinc-400 mb-8">Select a .pptx or .pdf file. Conversion may take a few seconds.</p>
+          <div v-if="statusMessage" class="mb-4 p-3 rounded-lg text-sm" :class="{
+            'bg-blue-900/50 text-blue-200': uploadStatus === 'uploading' || uploadStatus === 'converting',
+            'bg-red-900/50 text-red-200': uploadStatus === 'error',
+            'bg-green-900/50 text-green-200': uploadStatus === 'success'
+          }">{{ statusMessage }}</div>
+          <input type="file" accept=".pptx,.pdf" class="hidden" id="file-upload" @change="handleFileUpload" :disabled="uploadStatus === 'uploading' || uploadStatus === 'converting'" />
+          <label for="file-upload" class="cursor-pointer inline-block bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-neutral-200 font-medium py-3 px-6 rounded-lg transition mb-6" :class="{'opacity-50 cursor-not-allowed': uploadStatus === 'uploading' || uploadStatus === 'converting'}">
+            {{ fileToUpload ? fileToUpload.name : 'Choose File' }}
+          </label>
+          <div v-if="uploadStatus === 'error'">
+            <button @click="resetUpload" class="text-sm text-zinc-400 underline mt-2">Try another file</button>
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="phase === 'upload' && !isHost" class="flex flex-col items-center justify-center h-full">
+        <div class="animate-pulse w-16 h-16 bg-zinc-800 rounded-full mb-6"></div>
+        <h2 class="text-2xl font-bold text-neutral-100">Waiting for Teacher...</h2>
+        <p class="text-zinc-500 mt-2">The presentation material is being prepared.</p>
       </div>
 
       <template v-else>
@@ -283,7 +273,7 @@ const exitClass = () => {
       </template>
     </div>
 
-    <div v-if="showEndSessionModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div v-if="showEndSessionModal" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <div class="bg-zinc-900 border border-zinc-800 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
         <h3 class="text-2xl font-bold text-neutral-100 mb-2">End Session?</h3>
         <p class="text-zinc-400 mb-8">This will close the active room and display the final leaderboard for all participants.</p>
