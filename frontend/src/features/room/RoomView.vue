@@ -12,11 +12,15 @@ const router = useRouter()
 const roomId = route.params.roomId as string
 const isHost = route.query.role === 'host'
 const store = useClassroomStore()
-const joinError = ref<string | null>(null)
 const { currentSlide, totalSlides, isSlidesReady, lastError } = storeToRefs(store)
 
 type SessionPhase = 'upload' | 'present' | 'quiz' | 'ended'
 const phase = ref<SessionPhase>(isHost ? 'upload' : 'present')
+
+// Upload state machine
+const uploadStatus = ref<'idle' | 'uploading' | 'converting' | 'success' | 'error'>('idle')
+const statusMessage = ref('')
+let conversionTimeout: ReturnType<typeof setTimeout> | null = null
 
 watch(lastError, (err) => {
   if (err && !isHost) {
@@ -26,9 +30,18 @@ watch(lastError, (err) => {
   }
 })
 
-watch(isSlidesReady, (ready) => {
-  if (ready && phase.value === 'upload') {
-    phase.value = 'present'
+watch([isSlidesReady, totalSlides], ([ready, slides]) => {
+  if (ready && slides > 0) {
+    if (conversionTimeout) clearTimeout(conversionTimeout)
+    conversionTimeout = null
+    uploadStatus.value = 'success'
+    statusMessage.value = ''
+    if (phase.value === 'upload') phase.value = 'present'
+  } else if (ready && slides === 0) {
+    uploadStatus.value = 'error'
+    statusMessage.value = 'Conversion failed – no slides generated. Please try a different PDF file.'
+    phase.value = 'upload'
+    fileToUpload.value = null
   }
 })
 
@@ -38,59 +51,68 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (conversionTimeout) clearTimeout(conversionTimeout)
   store.disconnect()
 })
 
-
-const showEndSessionModal = ref(false)
 const fileToUpload = ref<File | null>(null)
-const isUploading = ref(false)
 
-const handleFileUpload = (e: Event) => {
-  const target = e.target as HTMLInputElement;
-  if (target.files && target.files.length > 0) {
-    const file = target.files[0];
-    if (file) {
-      console.log('File selected:', file.name, file.size);
-      fileToUpload.value = file;
-    }
-  } else {
-    console.log('No file selected');
-  }
-}
+const handleFileUpload = async (e: Event) => {
+  const target = e.target as HTMLInputElement
+  if (!target.files || target.files.length === 0) return
+  const file = target.files[0]
+  if (!file) return
 
-const startPresentation = async () => {
-  if (!fileToUpload.value) return
-  isUploading.value = true
+  fileToUpload.value = file
+  uploadStatus.value = 'uploading'
+  statusMessage.value = 'Uploading file...'
+  if (conversionTimeout) clearTimeout(conversionTimeout)
 
-  const formData = new FormData()
-  formData.append('file', fileToUpload.value)
-
-  const ext = fileToUpload.value.name.split('.').pop()?.toLowerCase()
+  const ext = file.name.split('.').pop()?.toLowerCase()
   if (ext !== 'pdf' && ext !== 'pptx') {
-    alert('Only PDF or PPTX files are supported')
-    isUploading.value = false
+    uploadStatus.value = 'error'
+    statusMessage.value = 'Only PDF or PPTX files are supported.'
+    fileToUpload.value = null
     return
   }
 
   try {
-    // debug log to verify correct URL construction
-    const url = `${API_BASE_URL}/upload/${roomId}/${ext}`;
-    console.log('Uploading to:', url);
     const response = await fetch(`${API_BASE_URL}/upload/${roomId}/${ext}`, {
       method: 'POST',
-      body: fileToUpload.value,
-      headers: {
-        'Content-Type': 'application/octet-stream'
-      }
+      body: file,
+      headers: { 'Content-Type': 'application/octet-stream' }
     })
-    if (!response.ok) throw new Error('Upload failed')
-  } catch (error) {
-    console.error("Failed to upload presentation:", error)
-    alert("Failed to process presentation.")
-  } finally {
-    isUploading.value = false
+    if (!response.ok) throw new Error(`Upload failed: ${response.status}`)
+
+    // Upload succeeded – now wait for conversion
+    uploadStatus.value = 'converting'
+    statusMessage.value = 'Converting slides...'
+
+    // Set timeout for conversion
+    conversionTimeout = setTimeout(() => {
+      if (!isSlidesReady.value || totalSlides.value === 0) {
+        uploadStatus.value = 'error'
+        statusMessage.value = 'Conversion timed out. Please try again (PDF works best).'
+        phase.value = 'upload'
+        fileToUpload.value = null
+      }
+      conversionTimeout = null
+    }, 120000)
+
+  } catch (err) {
+    console.error(err)
+    uploadStatus.value = 'error'
+    statusMessage.value = 'Upload failed. Please check your connection and try again.'
+    fileToUpload.value = null
   }
+}
+
+const resetUpload = () => {
+  if (conversionTimeout) clearTimeout(conversionTimeout)
+  uploadStatus.value = 'idle'
+  statusMessage.value = ''
+  fileToUpload.value = null
+  phase.value = 'upload'
 }
 
 const nextSlide = () => {
@@ -139,13 +161,12 @@ const confirmEndSession = () => {
 }
 
 const exitClass = () => {
-  
-  // TODO: Add any necessary cleanup or API calls to leave the room gracefully
-
   router.push('/')
 }
 
-// TODO: Replace with actual student data from API and real-time updates via WebSocket
+const showEndSessionModal = ref(false)
+
+// Dummy student data (replace later)
 const students = ref([
   { name: 'Yasfin', score: 250 },
   { name: 'Nafkhan', score: 210 },
@@ -198,30 +219,36 @@ const sortedStudents = computed(() => {
       <div v-if="phase === 'upload' && isHost" class="flex-1 flex items-center justify-center p-10">
         <div class="w-full max-w-2xl bg-zinc-900 border-2 border-dashed border-zinc-700 rounded-2xl p-12 text-center">
           <h2 class="text-3xl font-bold text-neutral-100 mb-4">Upload Presentation</h2>
-          <p class="text-zinc-400 mb-8">Select a .pptx or .pdf file to process and start the class.</p>
-          
+          <p class="text-zinc-400 mb-8">Select a .pptx or .pdf file. Conversion may take a few seconds.</p>
+
+          <!-- Status message -->
+          <div v-if="statusMessage" class="mb-4 p-3 rounded-lg text-sm"
+            :class="{
+              'bg-blue-900/50 text-blue-200': uploadStatus === 'uploading' || uploadStatus === 'converting',
+              'bg-red-900/50 text-red-200': uploadStatus === 'error',
+              'bg-green-900/50 text-green-200': uploadStatus === 'success'
+            }">
+            {{ statusMessage }}
+          </div>
+
           <input 
             type="file" 
             accept=".pptx,.pdf" 
             class="hidden" 
             id="file-upload"
             @change="handleFileUpload"
+            :disabled="uploadStatus === 'uploading' || uploadStatus === 'converting'"
           />
           <label 
             for="file-upload" 
             class="cursor-pointer inline-block bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-neutral-200 font-medium py-3 px-6 rounded-lg transition mb-6"
+            :class="{'opacity-50 cursor-not-allowed': uploadStatus === 'uploading' || uploadStatus === 'converting'}"
           >
             {{ fileToUpload ? fileToUpload.name : 'Choose File' }}
           </label>
-          
-          <div v-if="fileToUpload">
-            <button 
-                @click="startPresentation"
-                :disabled="isUploading"
-                class="w-full bg-neutral-100 text-zinc-950 font-bold py-4 rounded-xl hover:bg-neutral-300 transition shadow-lg disabled:opacity-50"
-            >
-              {{ isUploading ? 'Processing File...' : 'Start Class' }}
-            </button>
+
+          <div v-if="uploadStatus === 'error'">
+            <button @click="resetUpload" class="text-sm text-zinc-400 underline mt-2">Try another file</button>
           </div>
         </div>
       </div>
@@ -239,7 +266,7 @@ const sortedStudents = computed(() => {
             <div class="w-full h-full max-w-6xl bg-black border border-zinc-800 rounded-xl shadow-2xl flex items-center justify-center aspect-video relative">
                 <img 
                     v-if="totalSlides > 0" 
-                    :src="`${API_BASE_URL}/slides/${roomId}/slide-${currentSlide}.webp`" 
+                    :src="`${API_BASE_URL}/slides/${roomId}/slide-${String(currentSlide).padStart(2, '0')}.webp`" 
                     class="w-full h-full object-contain"
                     alt="Presentation Slide"
                 />
@@ -284,7 +311,7 @@ const sortedStudents = computed(() => {
           </div>
           
           <div class="text-sm font-medium text-zinc-500">
-            Slide 1 / 10
+            Slide {{ currentSlide }} / {{ totalSlides }}
           </div>
         </footer>
       </template>

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
 
 export const useClassroomStore = defineStore('classroom', () => {
   const socket = ref<WebSocket | null>(null)
@@ -7,7 +7,6 @@ export const useClassroomStore = defineStore('classroom', () => {
   const sessionId = ref<string | null>(null)
   const lastError = ref<string | null>(null)
 
-  // Slide state
   const currentSlide = ref(1)
   const totalSlides = ref(0)
   const isSlidesReady = ref(false)
@@ -53,16 +52,29 @@ export const useClassroomStore = defineStore('classroom', () => {
   const handleIncomingEvent = (event: string, data: any) => {
     switch (event) {
       case 'slides:ready':
+        console.log('slides:ready', data.total_slides)
         totalSlides.value = data.total_slides
-        isSlidesReady.value = true
         currentSlide.value = 1
+
+        nextTick(() => {
+          isSlidesReady.value = true
+        })
         break
       case 'slides:changed':
         currentSlide.value = data.slide_number
         break
+      case 'classroom:state_sync':
+        console.log('classroom:state_sync', data.total_slides, data.current_slide)
+        totalSlides.value = data.total_slides
+        currentSlide.value = data.current_slide
+        nextTick(() => {
+          isSlidesReady.value = true
+        })
+        break
       case 'classroom:created':
       case 'classroom:joined':
         lastError.value = null
+        send('classroom:sync', {})
         break
       case 'classroom:error':
         console.error('Classroom error:', data.message)
