@@ -32,7 +32,9 @@ async def main() -> None:
             await app.ws_manager.unregister(session_id)
             await app.room_registry.remove_participant_by_session(session_id)
 
-    async with websockets.serve(handler, "0.0.0.0", 6767) as server:
+    async with websockets.serve(
+        handler, "0.0.0.0", 6767, ping_interval=20, ping_timeout=20
+    ) as server:
         await server.serve_forever()
 
 
