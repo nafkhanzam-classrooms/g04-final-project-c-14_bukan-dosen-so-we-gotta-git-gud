@@ -5,6 +5,9 @@ from classroom.application.classroom_service import ClassroomService
 from classroom.domain.classroom import StudentState
 from classroom.interface.classroom_handler import ClassroomHandler
 from classroom.repository.classroom_repository import ClassroomRedisRepository
+from gamification.application.gamification_service import GamificationService
+from quiz.application.quiz_service import QuizService
+from shared.application.room.broadcast import RoomBroadcastService
 from shared.domain.room.registry import RoomRegistry
 from shared.infrastructure.websocket.manager import WSConnectionManager
 
@@ -36,16 +39,41 @@ def mock_room_registry():
 
 
 @pytest.fixture
+def mock_broadcast_service():
+    return AsyncMock(spec=RoomBroadcastService)
+
+
+@pytest.fixture
+def mock_gamification_service():
+    return AsyncMock(spec=GamificationService)
+
+
+@pytest.fixture
+def mock_quiz_service():
+    return AsyncMock(spec=QuizService)
+
+
+@pytest.fixture
 def classroom_service(mock_repository):
     return ClassroomService(repository=mock_repository)
 
 
 @pytest.fixture
-def classroom_handler(classroom_service, mock_ws_manager, mock_room_registry):
+def classroom_handler(
+    classroom_service,
+    mock_ws_manager,
+    mock_room_registry,
+    mock_broadcast_service,
+    mock_gamification_service,
+    mock_quiz_service,
+):
     return ClassroomHandler(
         service=classroom_service,
         ws_manager=mock_ws_manager,
         room_registry=mock_room_registry,
+        broadcast_service=mock_broadcast_service,
+        gamification_service=mock_gamification_service,
+        quiz_service=mock_quiz_service,
     )
 
 
