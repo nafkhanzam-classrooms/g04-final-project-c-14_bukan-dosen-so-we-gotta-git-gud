@@ -25,6 +25,7 @@ class ClassroomHandler:
         self._event_handlers: dict[str, Callable[[str, dict[str, Any]], Awaitable[None]]] = {
             "classroom:create": self._handle_create,
             "classroom:join": self._handle_join,
+            "classroom:sync": self._handle_sync
         }
 
     async def __call__(self, event_type: str, session_id: str, payload: dict[str, Any]) -> None:
