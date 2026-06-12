@@ -5,6 +5,7 @@ export const useClassroomStore = defineStore('classroom', () => {
   const socket = ref<WebSocket | null>(null)
   const isConnected = ref(false)
   const sessionId = ref<string | null>(null)
+  const lastError = ref<string | null>(null)
 
   // Slide state
   const currentSlide = ref(1)
@@ -12,6 +13,7 @@ export const useClassroomStore = defineStore('classroom', () => {
   const isSlidesReady = ref(false)
 
   const connect = (roomCode: string, role: 'host' | 'student', username: string = 'Anonymous') => {
+    lastError.value = null
     if (socket.value?.readyState === WebSocket.OPEN) return
 
     const wsUrl = import.meta.env.VITE_WS_URL
@@ -60,9 +62,11 @@ export const useClassroomStore = defineStore('classroom', () => {
         break
       case 'classroom:created':
       case 'classroom:joined':
+        lastError.value = null
         break
       case 'classroom:error':
         console.error('Classroom error:', data.message)
+        lastError.value = data.message
         break
     }
   }
@@ -74,6 +78,7 @@ export const useClassroomStore = defineStore('classroom', () => {
     isSlidesReady.value = false
     currentSlide.value = 1
     totalSlides.value = 0
+    lastError.value = null
   }
 
   return {
@@ -81,6 +86,7 @@ export const useClassroomStore = defineStore('classroom', () => {
     currentSlide,
     totalSlides,
     isSlidesReady,
+    lastError,
     connect,
     send,
     disconnect,

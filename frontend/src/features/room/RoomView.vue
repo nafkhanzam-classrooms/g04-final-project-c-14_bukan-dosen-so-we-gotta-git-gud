@@ -12,10 +12,19 @@ const router = useRouter()
 const roomId = route.params.roomId as string
 const isHost = route.query.role === 'host'
 const store = useClassroomStore()
-const { currentSlide, totalSlides, isSlidesReady } = storeToRefs(store)
+const joinError = ref<string | null>(null)
+const { currentSlide, totalSlides, isSlidesReady, lastError } = storeToRefs(store)
 
 type SessionPhase = 'upload' | 'present' | 'quiz' | 'ended'
 const phase = ref<SessionPhase>(isHost ? 'upload' : 'present')
+
+watch(lastError, (err) => {
+  if (err && !isHost) {
+    router.push({ path: '/join', query: { error: err } })
+  } else if (err && isHost) {
+    alert(`Error: ${err}`)
+  }
+})
 
 watch(isSlidesReady, (ready) => {
   if (ready && phase.value === 'upload') {
