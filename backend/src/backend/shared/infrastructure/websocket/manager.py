@@ -11,9 +11,10 @@ logger = logging.getLogger(__name__)
 
 
 class WSConnectionManager:
-    def __init__(self) -> None:
+    def __init__(self, max_error_tolerance: int = 5) -> None:
         self._connections: dict[str, websockets.ServerConnection] = {}
         self._error_counts: dict[str, int] = {}
+        self.max_error_tolerance = max_error_tolerance
 
     async def register(self, session_id: str, websocket: websockets.ServerConnection) -> None:
         # 1. Duplicate Login
@@ -78,6 +79,9 @@ class WSConnectionManager:
     def reset_error(self, session_id: str) -> None:
         if session_id in self._error_counts:
             self._error_counts[session_id] = 0
+
+    def is_tolerance_exceeded(self, session_id: str) -> bool:
+        return self._error_counts.get(session_id, 0) >= self.max_error_tolerance
 
     async def kick(self, session_id: str, reason: str) -> None:
         websocket = self._connections.get(session_id)

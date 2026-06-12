@@ -3,8 +3,6 @@ import json
 from shared.infrastructure.websocket.manager import WSConnectionManager
 from shared.infrastructure.websocket.router import WSEventRouter
 
-MAX_ERROR_TOLERANCE = 5
-
 
 async def process_raw_message(
     raw_msg: str | bytes, session_id: str, router: WSEventRouter, manager: WSConnectionManager
@@ -18,13 +16,15 @@ async def process_raw_message(
         manager.reset_error(session_id)
     except json.JSONDecodeError:
         current_errors = manager.record_error(session_id)
-        if current_errors >= MAX_ERROR_TOLERANCE:
+        if manager.is_tolerance_exceeded(session_id):
             await manager.kick(session_id, "Too many invalid packets sent.")
         else:
             await manager.send(
                 "error",
                 session_id,
-                {"message": f"Invalid JSON format. Warning {current_errors}/{MAX_ERROR_TOLERANCE}"},
+                {
+                    "message": f"Invalid JSON format. Warning {current_errors}/{manager.max_error_tolerance}"
+                },
             )
         return
 
