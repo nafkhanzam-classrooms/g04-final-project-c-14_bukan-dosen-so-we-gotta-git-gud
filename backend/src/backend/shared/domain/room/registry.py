@@ -13,3 +13,6 @@ class RoomRegistry(ABC):
 
     @abstractmethod
     async def get_room_by_session(self, session_id: str) -> str | None: ...
+
+    @abstractmethod
+    async def remove_all_participants(self, class_code: str) -> None: ...

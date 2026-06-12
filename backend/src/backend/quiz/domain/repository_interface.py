@@ -24,3 +24,6 @@ class QuizRepository(ABC):
 
     @abstractmethod
     async def get_options(self, class_code: str, question_id: str) -> list[str] | None: ...
+
+    @abstractmethod
+    async def delete_all_class_data(self, class_code: str) -> None: ...

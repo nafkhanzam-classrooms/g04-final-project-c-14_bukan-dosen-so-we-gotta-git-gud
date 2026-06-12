@@ -69,6 +69,9 @@ class Application:
             service=self.classroom_service,
             ws_manager=self.ws_manager,
             room_registry=self.room_registry,
+            broadcast_service=self.broadcast_service,
+            gamification_service=self.gamification_service,
+            quiz_service=self.quiz_service,
         )
 
         self.slide_handler = SlideHandler(

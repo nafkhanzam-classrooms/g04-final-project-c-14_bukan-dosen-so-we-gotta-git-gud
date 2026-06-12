@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from gamification.domain.repository_interface import GamificationRepository
 from gamification.domain.student_provider import StudentInfoProvider
@@ -159,3 +160,24 @@ class GamificationService:
             },
         )
         logger.info("quiz:closed broadcast for class %s", class_code)
+
+    async def get_formatted_leaderboard(
+        self, class_code: str, top_n: int = 10
+    ) -> list[dict[str, Any]]:
+        """Constructs the final leaderboard for frontend consumption."""
+        try:
+            top = await self._repo.get_leaderboard(class_code, top_n=top_n)
+            names = await self._student_provider.get_student_names(class_code)
+            top_students = []
+            for sid, score in top:
+                name = names.get(sid, "Unknown")
+                streak = await self._repo.get_streak(class_code, sid)
+                top_students.append({"name": name, "score": int(score), "is_streak": streak > 0})
+            return top_students
+        except Exception:
+            logger.exception("Failed to build final leaderboard for class %s", class_code)
+            return []
+
+    async def cleanup_gamification_data(self, class_code: str) -> None:
+        await self._repo.delete_gamification_data(class_code)
+        logger.info("Gamification data fully cleaned up for room %s", class_code)

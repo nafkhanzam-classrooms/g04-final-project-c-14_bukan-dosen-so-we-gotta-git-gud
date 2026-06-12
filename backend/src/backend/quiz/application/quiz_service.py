@@ -111,3 +111,7 @@ class QuizService:
         for ans in answers.values():
             stats[ans] = stats.get(ans, 0) + 1
         return stats
+
+    async def cleanup_quiz_data(self, class_code: str) -> None:
+        await self.quiz_repo.delete_all_class_data(class_code)
+        logger.info("Quiz residual data cleaned up for room %s", class_code)

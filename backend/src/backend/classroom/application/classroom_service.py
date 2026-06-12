@@ -60,3 +60,18 @@ class ClassroomService:
             total_slides=int(room_data.get("total_slides", 0)),
             active_students=active_students,
         )
+
+    async def verify_host(self, session_id: str, class_code: str) -> None:
+        """Verifies if the given session_id is the host of the room."""
+        room = await self.repo.get_room(class_code)
+        if not room:
+            logger.warning("Host verification failed: Room '%s' not found.", class_code)
+            raise ValueError("Class not found.")
+
+        if room.get("host_session_id") != session_id:
+            logger.warning("Unauthorized action attempt by %s for class %s", session_id, class_code)
+            raise PermissionError("Only the host is authorized to perform this action.")
+
+    async def delete_room(self, class_code: str) -> None:
+        await self.repo.delete_room_data(class_code)
+        logger.info("Room '%s' domain data successfully deleted.", class_code)
