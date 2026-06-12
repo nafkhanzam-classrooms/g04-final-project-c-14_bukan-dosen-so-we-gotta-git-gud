@@ -72,7 +72,7 @@ class TestProcessQuizClose:
         mock_ws_manager.send.assert_called_once_with(
             "game:score_update",
             "s1",
-            {
+            data={
                 "class_code": "MATH101",
                 "points_earned": 100,
                 "base_points": 100,
@@ -85,7 +85,12 @@ class TestProcessQuizClose:
         mock_broadcast.broadcast.assert_called_once_with(
             "MATH101",
             "quiz:closed",
-            {"question_id": "q1", "correct_answer": "A", "stats": {"A": 1}},
+            data={
+                "class_code": "MATH101",
+                "question_id": "q1",
+                "correct_answer": "A",
+                "stats": {"A": 1},
+            },
         )
 
     @pytest.mark.asyncio
@@ -108,7 +113,7 @@ class TestProcessQuizClose:
         mock_ws_manager.send.assert_called_once_with(
             "game:score_update",
             "s1",
-            {
+            data={
                 "class_code": "MATH101",
                 "points_earned": 150,
                 "base_points": 100,
@@ -139,7 +144,7 @@ class TestProcessQuizClose:
         mock_ws_manager.send.assert_called_once_with(
             "game:score_update",
             "s1",
-            {
+            data={
                 "class_code": "MATH101",
                 "points_earned": 0,
                 "base_points": 0,
@@ -152,7 +157,12 @@ class TestProcessQuizClose:
         mock_broadcast.broadcast.assert_called_once_with(
             "MATH101",
             "quiz:closed",
-            {"question_id": "q3", "correct_answer": "C", "stats": {"D": 1}},
+            data={
+                "class_code": "MATH101",
+                "question_id": "q3",
+                "correct_answer": "C",
+                "stats": {"D": 1},
+            },
         )
 
     @pytest.mark.asyncio
@@ -183,7 +193,7 @@ class TestProcessQuizClose:
         mock_ws_manager.send.assert_any_call(
             "game:score_update",
             "s1",
-            {
+            data={
                 "class_code": "MATH101",
                 "points_earned": 100,
                 "base_points": 100,
@@ -195,7 +205,7 @@ class TestProcessQuizClose:
         mock_ws_manager.send.assert_any_call(
             "game:score_update",
             "s2",
-            {
+            data={
                 "class_code": "MATH101",
                 "points_earned": 0,
                 "base_points": 0,
@@ -208,7 +218,12 @@ class TestProcessQuizClose:
         mock_broadcast.broadcast.assert_called_once_with(
             "MATH101",
             "quiz:closed",
-            {"question_id": "q4", "correct_answer": "A", "stats": stats},
+            data={
+                "class_code": "MATH101",
+                "question_id": "q4",
+                "correct_answer": "A",
+                "stats": stats,
+            },
         )
 
     @pytest.mark.asyncio
@@ -222,7 +237,12 @@ class TestProcessQuizClose:
         mock_broadcast.broadcast.assert_called_once_with(
             "C1",
             "quiz:closed",
-            {"question_id": "q99", "correct_answer": "Z", "stats": {}},
+            data={
+                "class_code": "C1",
+                "question_id": "q99",
+                "correct_answer": "Z",
+                "stats": {},
+            },
         )
 
     @pytest.mark.asyncio
@@ -246,7 +266,7 @@ class TestProcessQuizClose:
         mock_ws_manager.send.assert_any_call(
             "game:score_update",
             "s2",
-            {
+            data={
                 "class_code": "C1",
                 "points_earned": 0,
                 "base_points": 0,
@@ -258,7 +278,7 @@ class TestProcessQuizClose:
         mock_ws_manager.send.assert_any_call(
             "game:score_update",
             "s1",
-            {
+            data={
                 "class_code": "C1",
                 "points_earned": 100,
                 "base_points": 100,

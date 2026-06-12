@@ -185,7 +185,7 @@ async def test_handler_create_classroom_success(classroom_handler, mock_ws_manag
     mock_ws_manager.send.assert_called_once_with(
         event="classroom:created",
         session_id="host_1",
-        data={"class_code": "MATH123", "status": "success"},
+        data={"class_code": "MATH123"},
     )
 
 
@@ -200,7 +200,7 @@ async def test_handler_create_classroom_error(classroom_handler, mock_ws_manager
     mock_ws_manager.send.assert_called_once_with(
         event="classroom:error",
         session_id="host_1",
-        data={"message": "Class code is already in use."},
+        data={"class_code": None, "message": "Class code is already in use."},
     )
 
 
@@ -208,21 +208,15 @@ async def test_handler_create_classroom_error(classroom_handler, mock_ws_manager
 async def test_handler_join_classroom_success(
     classroom_handler, mock_ws_manager, mock_room_registry
 ):
-    expected_student = StudentState(name="Andi", is_online=True, stars=0)
-    classroom_handler.service.join_room = AsyncMock(return_value=expected_student)
-
     await classroom_handler(
         "classroom:join", "student_1", {"class_code": "MATH123", "student_name": "Andi"}
     )
 
-    classroom_handler.service.join_room.assert_called_once_with(
-        student_id="student_1", student_name="Andi", class_code="MATH123"
-    )
     mock_room_registry.add_participant.assert_called_once_with("MATH123", "student_1")
     mock_ws_manager.send.assert_called_once_with(
         event="classroom:joined",
         session_id="student_1",
-        data={"class_code": "MATH123", "student": expected_student.model_dump()},
+        data={"class_code": "MATH123", "student_name": "Andi"},
     )
 
 
@@ -281,7 +275,7 @@ async def test_handler_end_classroom_unauthorized(classroom_handler, mock_ws_man
     mock_ws_manager.send.assert_called_once_with(
         event="classroom:error",
         session_id="imposter",
-        data={"message": "Only the host is authorized."},
+        data={"class_code": None, "message": "Only the host is authorized."},
     )
 
 

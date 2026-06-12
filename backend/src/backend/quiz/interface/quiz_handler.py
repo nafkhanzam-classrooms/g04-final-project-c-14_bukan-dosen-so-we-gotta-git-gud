@@ -8,6 +8,7 @@ from quiz.domain.quiz_payload import (
     QuizStartPayload,
     QuizStopPayload,
 )
+from quiz.domain.response import QuizErrorResponse
 from shared.infrastructure.websocket.manager import WSConnectionManager
 
 if TYPE_CHECKING:
@@ -89,4 +90,5 @@ class QuizHandler:
             await self._send_error(session_id, "Internal server error")
 
     async def _send_error(self, session_id: str, message: str) -> None:
-        await self.ws_manager.send("quiz:error", session_id, {"message": message})
+        response = QuizErrorResponse(message=message)
+        await self.ws_manager.send("quiz:error", session_id, data=response.model_dump())
