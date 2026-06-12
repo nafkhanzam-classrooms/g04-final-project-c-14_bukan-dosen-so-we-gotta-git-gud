@@ -4,6 +4,10 @@ import logging
 from classroom.application.classroom_service import ClassroomService
 from classroom.interface.classroom_handler import ClassroomHandler
 from classroom.repository.classroom_repository import ClassroomRedisRepository
+from quiz.application.quiz_service import QuizService
+from quiz.interface.quiz_handler import QuizHandler
+from quiz.repository.host_provider_implementation import SlideHostProvider
+from quiz.repository.quiz_repository import QuizRedisRepository
 from redis.asyncio import Redis
 from shared.application.room.broadcast import RoomBroadcastService
 from shared.infrastructure.redis.event_bus import RedisEventBus
@@ -31,11 +35,14 @@ class Application:
         # Repositories
         classroom_repo = ClassroomRedisRepository(self.redis)
         slide_repo = SlideRedisRepository(self.redis)
+        quiz_repo = QuizRedisRepository(self.redis)
+        host_provider = SlideHostProvider(slide_repo)
 
         # Services
         self.classroom_service = ClassroomService(classroom_repo)
         self.broadcast_service = RoomBroadcastService(self.room_registry, self.ws_manager)
         self.slide_service = SlideService(slide_repo)
+        self.quiz_service = QuizService(quiz_repo, host_provider, self.broadcast_service)
 
         # Handlers
         self.classroom_handler = ClassroomHandler(
@@ -50,11 +57,14 @@ class Application:
             ws_manager=self.ws_manager,
         )
 
+        self.quiz_handler = QuizHandler(self.quiz_service, self.ws_manager)
+
         # Event handler and router
         self.event_handler = RoomEventHandler(self.classroom_service, self.broadcast_service)
         self.ws_router = WSEventRouter()
         self.ws_router.register("classroom", self.classroom_handler)
         self.ws_router.register("slides", self.slide_handler)
+        self.ws_router.register("quiz", self.quiz_handler)
 
     async def start_background_tasks(self) -> None:
         try:
