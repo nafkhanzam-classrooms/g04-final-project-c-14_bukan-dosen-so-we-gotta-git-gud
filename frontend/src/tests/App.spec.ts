@@ -15,6 +15,6 @@ describe('App', () => {
       }
     })
 
-    expect(wrapper.text()).toContain('Interactive Classrooms')
+    expect(wrapper.text()).toContain('CarbonFreeClass')
   })
 })
