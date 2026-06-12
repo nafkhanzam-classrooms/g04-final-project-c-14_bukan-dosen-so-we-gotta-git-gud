@@ -14,6 +14,7 @@ from slides.application.slide_service import SlideService
 from slides.interface.slide_handler import SlideHandler
 from slides.repository.slide_repository import SlideRedisRepository
 
+from application.config import settings
 from application.event_handlers import RoomEventHandler
 
 
@@ -21,7 +22,7 @@ class Application:
     def __init__(self) -> None:
         # Low‑level infrastructure
         self.redis = Redis(host="redis", port=6379, db=0, decode_responses=True)
-        self.ws_manager = WSConnectionManager()
+        self.ws_manager = WSConnectionManager(max_error_tolerance=settings.max_error_tolerance)
         self.room_registry = InMemoryRoomRegistry()
         self.event_bus = RedisEventBus(self.redis)
 

@@ -4,6 +4,7 @@ import logging
 import websockets
 
 from application.bootstrap import Application
+from application.config import settings
 from application.message_parser import process_raw_message
 
 logging.basicConfig(
@@ -32,7 +33,13 @@ async def main() -> None:
             await app.ws_manager.unregister(session_id)
             await app.room_registry.remove_participant_by_session(session_id)
 
-    async with websockets.serve(handler, "0.0.0.0", 6767) as server:
+    async with websockets.serve(
+        handler,
+        settings.ws_host,
+        settings.ws_port,
+        ping_interval=settings.ws_ping_interval,
+        ping_timeout=settings.ws_ping_timeout,
+    ) as server:
         await server.serve_forever()
 
 

@@ -1,6 +1,6 @@
 import logging
 
-from classroom.domain.classroom import StudentState
+from classroom.domain.classroom import Classroom, StudentState
 from classroom.domain.repository_interface import ClassroomRepository
 
 logger = logging.getLogger(__name__)
@@ -38,3 +38,25 @@ class ClassroomService:
         await self.repo.update_total_slides(class_code, total_slides)
         logger.info(f"Room '{class_code}' total_slides updated to {total_slides}.")
         return True
+
+    async def get_room_state(self, class_code: str) -> Classroom | None:
+        room_data = await self.repo.get_room(class_code)
+        if not room_data:
+            return None
+
+        raw_students = await self.repo.get_all_students(class_code)
+        active_students: dict[str, StudentState] = {}
+
+        for session_id, student_json in raw_students.items():
+            try:
+                active_students[session_id] = StudentState.model_validate_json(student_json)
+            except Exception as e:
+                logger.warning(f"Failed to parse student state {session_id}: {e}")
+
+        return Classroom(
+            class_code=class_code,
+            host_session_id=room_data.get("host_session_id", ""),
+            current_slide=int(room_data.get("current_slide", 1)),
+            total_slides=int(room_data.get("total_slides", 0)),
+            active_students=active_students,
+        )

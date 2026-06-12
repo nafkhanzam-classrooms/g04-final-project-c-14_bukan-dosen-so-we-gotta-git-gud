@@ -18,3 +18,6 @@ class ClassroomRepository(ABC):
 
     @abstractmethod
     async def update_total_slides(self, class_code: str, total: int) -> None: ...
+
+    @abstractmethod
+    async def get_all_students(self, class_code: str) -> dict[str, str]: ...

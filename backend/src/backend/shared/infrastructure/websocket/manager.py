@@ -11,8 +11,10 @@ logger = logging.getLogger(__name__)
 
 
 class WSConnectionManager:
-    def __init__(self) -> None:
+    def __init__(self, max_error_tolerance: int = 5) -> None:
         self._connections: dict[str, websockets.ServerConnection] = {}
+        self._error_counts: dict[str, int] = {}
+        self.max_error_tolerance = max_error_tolerance
 
     async def register(self, session_id: str, websocket: websockets.ServerConnection) -> None:
         # 1. Duplicate Login
@@ -22,6 +24,12 @@ class WSConnectionManager:
             )
             old_ws = self._connections[session_id]
             with contextlib.suppress(websockets.ConnectionClosed):
+                envelope = WSMessage(
+                    event="connection:replaced",
+                    data={"message": "Session taken over by another device."},
+                )
+                await old_ws.send(envelope.model_dump_json())
+
                 await old_ws.close(code=4000, reason="Session replaced by a new connection")
 
         # 2. Normal scenario + could also be used for reconnect
@@ -62,3 +70,21 @@ class WSConnectionManager:
         await self.register(session_id, websocket)
 
         return session_id
+
+    def record_error(self, session_id: str) -> int:
+        current = self._error_counts.get(session_id, 0) + 1
+        self._error_counts[session_id] = current
+        return current
+
+    def reset_error(self, session_id: str) -> None:
+        if session_id in self._error_counts:
+            self._error_counts[session_id] = 0
+
+    def is_tolerance_exceeded(self, session_id: str) -> bool:
+        return self._error_counts.get(session_id, 0) >= self.max_error_tolerance
+
+    async def kick(self, session_id: str, reason: str) -> None:
+        websocket = self._connections.get(session_id)
+        if websocket:
+            logger.warning(f"Kicking session {session_id}: {reason}")
+            await websocket.close(code=1008, reason=reason)

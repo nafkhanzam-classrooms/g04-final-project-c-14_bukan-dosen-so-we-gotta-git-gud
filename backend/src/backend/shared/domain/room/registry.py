@@ -10,3 +10,6 @@ class RoomRegistry(ABC):
 
     @abstractmethod
     async def get_participants(self, class_code: str) -> set[str]: ...
+
+    @abstractmethod
+    async def get_room_by_session(self, session_id: str) -> str | None: ...
