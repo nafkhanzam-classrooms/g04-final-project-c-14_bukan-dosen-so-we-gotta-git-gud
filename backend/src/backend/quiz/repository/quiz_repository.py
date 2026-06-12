@@ -73,8 +73,11 @@ class QuizRedisRepository(QuizRepository):
         # Use SCAN to safely find and delete any lingering quiz keys for this class
         cursor = 0
         pattern = f"quiz:{class_code}:*"
-        while cursor:
+        while True:
             cursor, keys = await self.redis.scan(cursor=cursor, match=pattern)
             if keys:
                 await self.redis.delete(*keys)
+
+            if int(cursor) == 0:
+                break
         logger.debug("All quiz Redis data deleted for room %s", class_code)
