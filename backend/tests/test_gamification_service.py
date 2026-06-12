@@ -369,3 +369,36 @@ class TestProcessQuizClose:
                 ],
             },
         )
+
+
+@pytest.mark.asyncio
+async def test_get_formatted_leaderboard(service, mock_repo, mock_student_provider):
+    class_code = "MATH123"
+
+    mock_repo.get_leaderboard.return_value = [("sess_1", 500.0), ("sess_2", 300.0)]
+    mock_student_provider.get_student_names.return_value = {"sess_1": "Alice", "sess_2": "Bob"}
+
+    async def mock_get_streak(cc, sid):
+        return 2 if sid == "sess_1" else 0
+
+    mock_repo.get_streak = AsyncMock(side_effect=mock_get_streak)
+
+    result = await service.get_formatted_leaderboard(class_code, top_n=2)
+
+    assert len(result) == 2
+    assert result[0] == {"name": "Alice", "score": 500, "is_streak": True}
+    assert result[1] == {"name": "Bob", "score": 300, "is_streak": False}
+
+
+@pytest.mark.asyncio
+async def test_gamification_delete_data():
+    from gamification.repository.gamification_repository import GamificationRedisRepository
+
+    mock_redis = AsyncMock()
+    repo = GamificationRedisRepository(mock_redis)
+
+    await repo.delete_gamification_data("MATH123")
+
+    mock_redis.delete.assert_called_once_with(
+        "gamification:MATH123:streaks", "gamification:MATH123:leaderboard"
+    )

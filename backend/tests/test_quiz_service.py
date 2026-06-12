@@ -169,3 +169,22 @@ async def test_close_quiz_unauthorized(service, mock_host_provider):
     mock_host_provider.get_host.return_value = "other"
     with pytest.raises(PermissionError, match="Only host"):
         await service.close_quiz("not_host", "MATH123", "q1", "B")
+
+
+@pytest.mark.asyncio
+async def test_quiz_delete_all_class_data():
+    from quiz.repository.quiz_repository import QuizRedisRepository
+
+    mock_redis = AsyncMock()
+    repo = QuizRedisRepository(mock_redis)
+
+    mock_redis.scan.side_effect = [
+        (10, [b"quiz:MATH123:q1", b"quiz:MATH123:q1:answers"]),
+        (0, [b"quiz:MATH123:q2"]),
+    ]
+
+    await repo.delete_all_class_data("MATH123")
+
+    assert mock_redis.scan.call_count == 2
+    mock_redis.delete.assert_any_call(b"quiz:MATH123:q1", b"quiz:MATH123:q1:answers")
+    mock_redis.delete.assert_any_call(b"quiz:MATH123:q2")
