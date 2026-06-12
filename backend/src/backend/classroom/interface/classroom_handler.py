@@ -88,6 +88,22 @@ class ClassroomHandler:
             )
             await self._send_error(session_id, f"Failed to join classroom: {e}")
 
+    async def _handle_sync(self, session_id: str, _payload: dict[str, Any]) -> None:
+        class_code = await self.room_registry.get_room_by_session(session_id)
+        if not class_code:
+            logger.info(f"Sync ignored: Session '{session_id}' is not associated with any class.")
+            return
+
+        room_state = await self.service.get_room_state(class_code)
+        if not room_state:
+            await self._send_error(session_id, "Failed to fetch classroom data.")
+            return
+
+        await self.ws_manager.send(
+            event="classroom:state_sync", session_id=session_id, data=room_state.model_dump()
+        )
+        logger.info(f"Class state '{class_code}' successfully synced for session '{session_id}'.")
+
     async def _send_error(self, session_id: str, error_message: str) -> None:
         await self.ws_manager.send(
             event="classroom:error",

@@ -29,3 +29,8 @@ class ClassroomRedisRepository(ClassroomRepository):
     async def add_student(self, class_code: str, session_id: str, student: StudentState) -> None:
         key = f"room:{class_code}:students"
         await self.redis.hset(key, session_id, student.model_dump_json())
+
+    async def get_all_students(self, class_code: str) -> dict[str, str]:
+        key = f"room:{class_code}:students"
+        data = await self.redis.hgetall(key)
+        return cast("dict[str, str]", data)

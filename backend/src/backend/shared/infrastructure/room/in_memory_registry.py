@@ -21,3 +21,6 @@ class InMemoryRoomRegistry(RoomRegistry):
         class_code = self._session_room.pop(session_id, None)
         if class_code and class_code in self._rooms:
             self._rooms[class_code].discard(session_id)
+
+    async def get_room_by_session(self, session_id: str) -> str | None:
+        return self._session_room.get(session_id)
