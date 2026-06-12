@@ -45,10 +45,14 @@ class MockStreamWriter:
 
 
 @pytest.mark.asyncio
+@patch("src.publisher.publish_slides_ready")
+@patch("os.listdir", return_value=["slide-01.webp"])
 @patch("src.main.process_pdf")
 @patch("builtins.open", new_callable=mock_open)
 @patch("os.remove")
-async def test_handle_valid_pdf_upload(mock_remove, mock_file, mock_process_pdf):
+async def test_handle_valid_pdf_upload(
+    mock_remove, mock_file, mock_process_pdf, mock_listdir, mock_publish
+):
     mock_process_pdf.return_value = None
 
     body = b"%PDF-1.4 mock binary data"
@@ -68,7 +72,7 @@ async def test_handle_valid_pdf_upload(mock_remove, mock_file, mock_process_pdf)
     assert mock_process_pdf.call_args[0][0] == "ROOM123"
 
     assert b"200 OK" in writer.written_data
-    assert b"Konversi Berhasil" in writer.written_data
+    assert b"Conversion Successful" in writer.written_data
 
 
 @pytest.mark.asyncio

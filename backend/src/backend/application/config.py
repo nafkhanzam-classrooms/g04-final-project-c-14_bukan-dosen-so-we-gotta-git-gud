@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     ws_port: int = 6767
     ws_ping_interval: int = 20
     ws_ping_timeout: int = 20
+    log_level: str = "INFO"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

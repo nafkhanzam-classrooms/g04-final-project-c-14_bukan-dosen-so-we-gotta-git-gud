@@ -21,6 +21,12 @@ class WSEventRouter:
         handler = self._routes.get(prefix)
 
         if handler:
+            logger.debug(
+                "Dispatching event '%s' (prefix '%s') to handler for session %s",
+                event_type,
+                prefix,
+                session_id,
+            )
             await handler(event_type, session_id, payload)
         else:
             logger.warning(

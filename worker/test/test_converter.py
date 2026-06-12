@@ -1,31 +1,37 @@
 import pytest
 import os
-from unittest.mock import patch, AsyncMock, ANY
+from unittest.mock import patch, AsyncMock
 from src.converter import process_pdf, process_pptx
 
 
 @pytest.mark.asyncio
 @patch("asyncio.create_subprocess_exec")
-async def test_process_pdf_calls_pdftoppm(mock_exec, tmp_path):
-    mock_proc = AsyncMock()
-    mock_proc.communicate.return_value = (b"stdout", b"stderr")
-    mock_exec.return_value = mock_proc
+@patch("glob.glob")
+@patch("os.remove")
+async def test_process_pdf_converts_to_webp(
+    mock_remove, mock_glob, mock_exec, tmp_path
+):
+    # Setup: first call is pdftoppm (success), subsequent calls are cwebp (success)
+    mock_proc_pdftoppm = AsyncMock()
+    mock_proc_pdftoppm.communicate.return_value = (b"", b"")
+    mock_proc_pdftoppm.returncode = 0
 
-    room_code = "XYZ123"
-    pdf_filepath = "/dummy/path/file.pdf"
+    mock_proc_cwebp = AsyncMock()
+    mock_proc_cwebp.communicate.return_value = (b"", b"")
+    mock_proc_cwebp.returncode = 0
+
+    # mock_exec.side_effect: first pdftoppm, then cwebp for each PNG
+    mock_exec.side_effect = [mock_proc_pdftoppm, mock_proc_cwebp]
+
+    mock_glob.return_value = [os.path.join(tmp_path, "room", "slide-01.png")]
+
     volume_dir = str(tmp_path)
+    await process_pdf("room", "/fake.pdf", volume_dir)
 
-    await process_pdf(room_code, pdf_filepath, volume_dir)
-
-    mock_exec.assert_called_once_with(
-        "pdftoppm",
-        "-webp",
-        pdf_filepath,
-        f"{volume_dir}/{room_code}/slide",
-        stdout=ANY,
-        stderr=ANY,
-    )
-    assert os.path.exists(os.path.join(volume_dir, room_code))
+    # Verify pdftoppm call with -png
+    assert mock_exec.call_args_list[0][0][1] == "-png"
+    assert "cwebp" in mock_exec.call_args_list[1][0]
+    mock_remove.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -37,6 +43,7 @@ async def test_process_pptx_chains_to_pdf(
     mock_remove, mock_exists, mock_exec, mock_process_pdf, tmp_path
 ):
     mock_proc = AsyncMock()
+    mock_proc.returncode = 0
     mock_proc.communicate.return_value = (b"stdout", b"stderr")
     mock_exec.return_value = mock_proc
 

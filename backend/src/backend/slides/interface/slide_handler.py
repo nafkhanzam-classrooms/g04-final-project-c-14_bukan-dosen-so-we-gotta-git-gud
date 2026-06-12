@@ -27,9 +27,12 @@ class SlideHandler:
         }
 
     async def __call__(self, event_type: str, session_id: str, payload: dict[str, Any]) -> None:
+        logger.debug("SlideHandler processing event '%s' from session %s", event_type, session_id)
         handler = self._event_handlers.get(event_type)
         if handler:
             await handler(session_id, payload)
+        else:
+            logger.warning("Unknown slides event '%s' from session %s", event_type, session_id)
 
     async def _handle_slide_change(self, session_id: str, payload: dict[str, Any]) -> None:
         try:

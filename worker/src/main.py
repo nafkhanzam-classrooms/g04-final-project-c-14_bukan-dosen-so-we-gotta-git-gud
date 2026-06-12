@@ -70,12 +70,16 @@ async def handle_http_request(
 
         os.remove(temp_filepath)
 
-        from src.publisher import publish_slides_ready
-
         # Publish to redis
         output_dir = os.path.join(VOLUME_DIR, room_code)
+        slides = [f for f in os.listdir(output_dir) if f.endswith(".webp")]
+        if not slides:
+            raise RuntimeError(f"No WebP slides generated for room {room_code}")
+
+        from src.publisher import publish_slides_ready
+
         await publish_slides_ready(room_code, output_dir)
-        await send_http_response(writer, 200, "Konversi Berhasil")
+        await send_http_response(writer, 200, "Conversion Successful")
 
     except Exception as e:
         logger.error(f"Error handling request: {e}", exc_info=True)

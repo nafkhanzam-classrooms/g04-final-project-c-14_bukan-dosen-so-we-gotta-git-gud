@@ -17,6 +17,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libreoffice \
     poppler-utils \
     fonts-liberation \
+    webp \
     && rm -rf /var/lib/apt/lists/*
 
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -45,6 +46,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libreoffice \
     poppler-utils \
     fonts-liberation \
+    webp \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/.venv /app/.venv

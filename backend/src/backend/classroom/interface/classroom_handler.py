@@ -29,6 +29,9 @@ class ClassroomHandler:
         }
 
     async def __call__(self, event_type: str, session_id: str, payload: dict[str, Any]) -> None:
+        logger.debug(
+            "ClassroomHandler processing event '%s' from session %s", event_type, session_id
+        )
         handler = self._event_handlers.get(event_type)
         if not handler:
             logger.warning(
