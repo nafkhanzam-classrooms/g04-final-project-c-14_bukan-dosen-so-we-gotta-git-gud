@@ -166,6 +166,7 @@ const confirmEndSession = () => {
 }
 
 const exitClass = () => {
+  store.logout()
   router.push('/')
 }
 
