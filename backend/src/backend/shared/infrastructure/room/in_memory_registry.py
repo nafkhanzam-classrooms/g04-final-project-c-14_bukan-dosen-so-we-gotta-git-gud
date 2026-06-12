@@ -31,3 +31,10 @@ class InMemoryRoomRegistry(RoomRegistry):
 
     async def get_room_by_session(self, session_id: str) -> str | None:
         return self._session_room.get(session_id)
+
+    async def remove_all_participants(self, class_code: str) -> None:
+        participants = self._rooms.pop(class_code, set())
+        for session_id in participants:
+            self._session_room.pop(session_id, None)
+            logger.debug("Session %s removed during class %s termination", session_id, class_code)
+        logger.info("All participants removed from registry for room %s", class_code)

@@ -21,3 +21,6 @@ class ClassroomRepository(ABC):
 
     @abstractmethod
     async def get_all_students(self, class_code: str) -> dict[str, str]: ...
+
+    @abstractmethod
+    async def delete_room_data(self, class_code: str) -> None: ...

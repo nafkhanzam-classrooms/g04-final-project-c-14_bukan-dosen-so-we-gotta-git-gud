@@ -2,7 +2,14 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from classroom.application.classroom_service import ClassroomService
-from classroom.domain.class_payload import CreateClassPayload, JoinClassroomPayload
+from classroom.domain.class_payload import (
+    CreateClassPayload,
+    EndClassroomPayload,
+    JoinClassroomPayload,
+)
+from gamification.application.gamification_service import GamificationService
+from quiz.application.quiz_service import QuizService
+from shared.application.room.broadcast import RoomBroadcastService
 from shared.domain.room.registry import RoomRegistry
 from shared.infrastructure.websocket.manager import WSConnectionManager
 
@@ -18,14 +25,21 @@ class ClassroomHandler:
         service: ClassroomService,
         ws_manager: WSConnectionManager,
         room_registry: RoomRegistry,
+        broadcast_service: RoomBroadcastService,
+        gamification_service: GamificationService,
+        quiz_service: QuizService,
     ):
         self.service = service
         self.ws_manager = ws_manager
         self.room_registry = room_registry
+        self.broadcast_service = broadcast_service
+        self.gamification_service = gamification_service
+        self.quiz_service = quiz_service
         self._event_handlers: dict[str, Callable[[str, dict[str, Any]], Awaitable[None]]] = {
             "classroom:create": self._handle_create,
             "classroom:join": self._handle_join,
             "classroom:sync": self._handle_sync,
+            "classroom:end": self._handle_end,
         }
 
     async def __call__(self, event_type: str, session_id: str, payload: dict[str, Any]) -> None:
@@ -116,3 +130,45 @@ class ClassroomHandler:
             session_id=session_id,
             data={"message": error_message},
         )
+
+    async def _handle_end(self, session_id: str, payload: dict[str, Any]) -> None:
+        try:
+            data = EndClassroomPayload.model_validate(payload)
+            class_code = data.class_code
+
+            logger.info("Session %s attempting to end classroom %s", session_id, class_code)
+
+            # 1. Authorize: Check if sender is the legitimate host
+            await self.service.verify_host(session_id, class_code)
+
+            # 2. Retrieve final formatted leaderboard (must happen before room data is deleted)
+            top_students = await self.gamification_service.get_formatted_leaderboard(class_code)
+
+            # 3. Broadcast termination event to all participants
+            await self.broadcast_service.broadcast(
+                class_code=class_code,
+                event="classroom:ended",
+                data={"class_code": class_code, "top_students": top_students},
+            )
+
+            # 4. Clean up distributed Redis data
+            await self.gamification_service.cleanup_gamification_data(class_code)
+            await self.quiz_service.cleanup_quiz_data(class_code)
+            await self.service.delete_room(class_code)
+
+            # 5. Flush memory registry
+            await self.room_registry.remove_all_participants(class_code)
+
+            logger.info("Classroom %s successfully ended and fully cleaned up.", class_code)
+
+        except ValueError as e:
+            logger.warning("Validation error on room end (Session: %s): %s", session_id, e)
+            await self._send_error(session_id, str(e))
+        except PermissionError as e:
+            logger.warning("Permission error on room end (Session: %s): %s", session_id, e)
+            await self._send_error(session_id, str(e))
+        except Exception as e:
+            logger.error(
+                "Unexpected error in classroom:end (Session: %s): %s", session_id, e, exc_info=True
+            )
+            await self._send_error(session_id, "Failed to end classroom due to internal error.")

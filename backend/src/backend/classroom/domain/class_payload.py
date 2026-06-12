@@ -8,3 +8,7 @@ class CreateClassPayload(BaseModel):
 class JoinClassroomPayload(BaseModel):
     class_code: str
     student_name: str
+
+
+class EndClassroomPayload(BaseModel):
+    class_code: str

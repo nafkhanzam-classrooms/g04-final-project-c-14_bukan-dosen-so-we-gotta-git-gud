@@ -5,6 +5,9 @@ from classroom.application.classroom_service import ClassroomService
 from classroom.domain.classroom import StudentState
 from classroom.interface.classroom_handler import ClassroomHandler
 from classroom.repository.classroom_repository import ClassroomRedisRepository
+from gamification.application.gamification_service import GamificationService
+from quiz.application.quiz_service import QuizService
+from shared.application.room.broadcast import RoomBroadcastService
 from shared.domain.room.registry import RoomRegistry
 from shared.infrastructure.websocket.manager import WSConnectionManager
 
@@ -36,16 +39,41 @@ def mock_room_registry():
 
 
 @pytest.fixture
+def mock_broadcast_service():
+    return AsyncMock(spec=RoomBroadcastService)
+
+
+@pytest.fixture
+def mock_gamification_service():
+    return AsyncMock(spec=GamificationService)
+
+
+@pytest.fixture
+def mock_quiz_service():
+    return AsyncMock(spec=QuizService)
+
+
+@pytest.fixture
 def classroom_service(mock_repository):
     return ClassroomService(repository=mock_repository)
 
 
 @pytest.fixture
-def classroom_handler(classroom_service, mock_ws_manager, mock_room_registry):
+def classroom_handler(
+    classroom_service,
+    mock_ws_manager,
+    mock_room_registry,
+    mock_broadcast_service,
+    mock_gamification_service,
+    mock_quiz_service,
+):
     return ClassroomHandler(
         service=classroom_service,
         ws_manager=mock_ws_manager,
         room_registry=mock_room_registry,
+        broadcast_service=mock_broadcast_service,
+        gamification_service=mock_gamification_service,
+        quiz_service=mock_quiz_service,
     )
 
 
@@ -117,6 +145,33 @@ async def test_set_total_slides_room_not_found(classroom_service, mock_repositor
     mock_repository.update_total_slides.assert_not_called()
 
 
+@pytest.mark.asyncio
+async def test_verify_host_success(classroom_service, mock_repository):
+    mock_repository.get_room.return_value = {"host_session_id": "real_host"}
+    await classroom_service.verify_host("real_host", "MATH123")
+    mock_repository.get_room.assert_called_once_with("MATH123")
+
+
+@pytest.mark.asyncio
+async def test_verify_host_not_found(classroom_service, mock_repository):
+    mock_repository.get_room.return_value = None
+    with pytest.raises(ValueError, match="Class not found"):
+        await classroom_service.verify_host("host_1", "MATH123")
+
+
+@pytest.mark.asyncio
+async def test_verify_host_permission_error(classroom_service, mock_repository):
+    mock_repository.get_room.return_value = {"host_session_id": "real_host"}
+    with pytest.raises(PermissionError, match="Only the host is authorized"):
+        await classroom_service.verify_host("imposter_session", "MATH123")
+
+
+@pytest.mark.asyncio
+async def test_delete_room_success(classroom_service, mock_repository):
+    await classroom_service.delete_room("MATH123")
+    mock_repository.delete_room_data.assert_called_once_with("MATH123")
+
+
 # ClassroomHandler tests
 @pytest.mark.asyncio
 async def test_handler_create_classroom_success(classroom_handler, mock_ws_manager):
@@ -182,6 +237,54 @@ async def test_handler_unknown_event(classroom_handler, mock_ws_manager):
     )
 
 
+@pytest.mark.asyncio
+async def test_handler_end_classroom_success(
+    classroom_handler,
+    mock_ws_manager,
+    mock_broadcast_service,
+    mock_gamification_service,
+    mock_quiz_service,
+    mock_room_registry,
+):
+    session_id = "host_session"
+    class_code = "MATH123"
+    fake_leaderboard = [
+        {"name": "Budi", "score": 1250, "is_streak": True},
+        {"name": "Andi", "score": 1100, "is_streak": False},
+    ]
+
+    classroom_handler.service.verify_host = AsyncMock()
+    classroom_handler.service.delete_room = AsyncMock()
+    mock_gamification_service.get_formatted_leaderboard.return_value = fake_leaderboard
+
+    await classroom_handler("classroom:end", session_id, {"class_code": class_code})
+
+    classroom_handler.service.verify_host.assert_called_once_with(session_id, class_code)
+    mock_gamification_service.get_formatted_leaderboard.assert_called_once_with(class_code)
+    mock_broadcast_service.broadcast.assert_called_once_with(
+        class_code=class_code,
+        event="classroom:ended",
+        data={"class_code": class_code, "top_students": fake_leaderboard},
+    )
+    mock_gamification_service.cleanup_gamification_data.assert_called_once_with(class_code)
+    mock_quiz_service.cleanup_quiz_data.assert_called_once_with(class_code)
+    classroom_handler.service.delete_room.assert_called_once_with(class_code)
+    mock_room_registry.remove_all_participants.assert_called_once_with(class_code)
+
+
+@pytest.mark.asyncio
+async def test_handler_end_classroom_unauthorized(classroom_handler, mock_ws_manager):
+    classroom_handler.service.verify_host = AsyncMock(
+        side_effect=PermissionError("Only the host is authorized.")
+    )
+    await classroom_handler("classroom:end", "imposter", {"class_code": "MATH123"})
+    mock_ws_manager.send.assert_called_once_with(
+        event="classroom:error",
+        session_id="imposter",
+        data={"message": "Only the host is authorized."},
+    )
+
+
 # ClassroomRedisRepository tests
 @pytest.mark.asyncio
 async def test_save_room(redis_repository, mock_redis):
@@ -229,3 +332,9 @@ async def test_add_student(redis_repository, mock_redis):
     mock_redis.hset.assert_called_once_with(
         "room:BIO101:students", "std_1", student.model_dump_json()
     )
+
+
+@pytest.mark.asyncio
+async def test_classroom_delete_room_data(redis_repository, mock_redis):
+    await redis_repository.delete_room_data("MATH123")
+    mock_redis.delete.assert_called_once_with("room:MATH123", "room:MATH123:students")

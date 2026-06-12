@@ -1,4 +1,3 @@
-# tests/test_reconnect.py
 import json
 from unittest.mock import AsyncMock, patch
 
@@ -7,6 +6,9 @@ import websockets
 from classroom.application.classroom_service import ClassroomService
 from classroom.domain.classroom import Classroom, StudentState
 from classroom.interface.classroom_handler import ClassroomHandler
+from gamification.application.gamification_service import GamificationService
+from quiz.application.quiz_service import QuizService
+from shared.application.room.broadcast import RoomBroadcastService
 from shared.domain.room.registry import RoomRegistry
 from shared.infrastructure.websocket.manager import WSConnectionManager
 
@@ -24,11 +26,17 @@ async def test_classroom_handler_sync_event_sends_state_sync():
     service = AsyncMock(spec=ClassroomService)
     ws_manager = AsyncMock(spec=WSConnectionManager)
     room_registry = AsyncMock(spec=RoomRegistry)
+    broadcast_service = AsyncMock(spec=RoomBroadcastService)
+    gamification_service = AsyncMock(spec=GamificationService)
+    quiz_service = AsyncMock(spec=QuizService)
 
     handler = ClassroomHandler(
         service=service,
         ws_manager=ws_manager,
         room_registry=room_registry,
+        broadcast_service=broadcast_service,
+        gamification_service=gamification_service,
+        quiz_service=quiz_service,
     )
 
     session_id = "reconnect_sess_123"
@@ -65,7 +73,18 @@ async def test_classroom_handler_sync_ignores_when_not_in_room():
     room_registry = AsyncMock(spec=RoomRegistry)
     room_registry.get_room_by_session.return_value = None
 
-    handler = ClassroomHandler(service, ws_manager, room_registry)
+    broadcast_service = AsyncMock(spec=RoomBroadcastService)
+    gamification_service = AsyncMock(spec=GamificationService)
+    quiz_service = AsyncMock(spec=QuizService)
+
+    handler = ClassroomHandler(
+        service=service,
+        ws_manager=ws_manager,
+        room_registry=room_registry,
+        broadcast_service=broadcast_service,
+        gamification_service=gamification_service,
+        quiz_service=quiz_service,
+    )
 
     await handler("classroom:sync", "lonely_sess", {})
 
@@ -161,8 +180,18 @@ async def test_teacher_reconnect_recovers_host_privileges():
     service = AsyncMock(spec=ClassroomService)
     ws_manager = AsyncMock(spec=WSConnectionManager)
     room_registry = AsyncMock(spec=RoomRegistry)
+    broadcast_service = AsyncMock(spec=RoomBroadcastService)
+    gamification_service = AsyncMock(spec=GamificationService)
+    quiz_service = AsyncMock(spec=QuizService)
 
-    handler = ClassroomHandler(service, ws_manager, room_registry)
+    handler = ClassroomHandler(
+        service=service,
+        ws_manager=ws_manager,
+        room_registry=room_registry,
+        broadcast_service=broadcast_service,
+        gamification_service=gamification_service,
+        quiz_service=quiz_service,
+    )
 
     teacher_session_id = "teacher_old_sess_reconnect"
     class_code = "MATH101"
