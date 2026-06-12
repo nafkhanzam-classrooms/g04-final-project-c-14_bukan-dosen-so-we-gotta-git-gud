@@ -115,6 +115,11 @@ const resetUpload = () => {
   phase.value = 'upload'
 }
 
+const slideFilename = computed(() => {
+  const width = Math.max(2, String(totalSlides.value).length)
+  return `slide-${String(currentSlide.value).padStart(width, '0')}.webp`
+})
+
 const nextSlide = () => {
   if (currentSlide.value < totalSlides.value) {
     store.send('slides:change', {
@@ -266,7 +271,7 @@ const sortedStudents = computed(() => {
             <div class="w-full h-full max-w-6xl bg-black border border-zinc-800 rounded-xl shadow-2xl flex items-center justify-center aspect-video relative">
                 <img 
                     v-if="totalSlides > 0" 
-                    :src="`${API_BASE_URL}/slides/${roomId}/slide-${String(currentSlide).padStart(2, '0')}.webp`" 
+                    :src="`${API_BASE_URL}/slides/${roomId}/${slideFilename}`" 
                     class="w-full h-full object-contain"
                     alt="Presentation Slide"
                 />
