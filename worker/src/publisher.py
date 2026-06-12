@@ -18,7 +18,7 @@ async def publish_slides_ready(class_code: str, output_dir: str) -> None:
         payload = {
             "event": "slides:ready",
             "class_code": class_code,
-            "data": {"total_slides": total_slides}
+            "data": {"total_slides": total_slides},
         }
         await redis_client.publish("room_events", json.dumps(payload))
         logger.info(
