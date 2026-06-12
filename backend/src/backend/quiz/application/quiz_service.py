@@ -1,5 +1,6 @@
 import logging
 
+from gamification.application.gamification_service import GamificationService
 from quiz.domain.host_provider import HostProvider
 from quiz.domain.repository_interface import QuizRepository
 from shared.application.room.broadcast import RoomBroadcastService
@@ -13,10 +14,12 @@ class QuizService:
         quiz_repo: QuizRepository,
         host_provider: HostProvider,
         broadcast: RoomBroadcastService,
+        gamification: GamificationService,
     ):
         self.quiz_repo = quiz_repo
         self.host_provider = host_provider
         self.broadcast = broadcast
+        self.gamification = gamification
 
     async def start_quiz(
         self, session_id: str, class_code: str, question_id: str, options: list[str]
@@ -85,19 +88,23 @@ class QuizService:
             logger.warning(f"Unauthorized quiz close by {session_id}")
             raise PermissionError("Only host can close a quiz.")
 
-        # Calculate statistics before deletion
+        # 1. Fetch answers and compute stats
         answers = await self.quiz_repo.get_answers(class_code, question_id)
         stats = self._calculate_stats(answers)
-        logger.info(f"Quiz closed: class={class_code}, question={question_id}, stats={stats}")
+        logger.info(f"Quiz closing: class={class_code}, question={question_id}, stats={stats}")
 
-        # Delete quiz data from Redis
-        await self.quiz_repo.close_quiz(class_code, question_id, correct_answer)
-
-        await self.broadcast.broadcast(
+        # 2. Delegate to gamification
+        await self.gamification.process_quiz_close(
             class_code=class_code,
-            event="quiz:closed",
-            data={"question_id": question_id, "correct_answer": correct_answer, "stats": stats},
+            question_id=question_id,
+            correct_answer=correct_answer,
+            answers=answers,
+            stats=stats,
         )
+
+        # 3. Delete quiz data from Redis
+        await self.quiz_repo.close_quiz(class_code, question_id, correct_answer)
+        logger.info(f"Quiz data deleted for class={class_code}, question={question_id}")
 
     def _calculate_stats(self, answers: dict[str, str]) -> dict[str, int]:
         stats: dict[str, int] = {}

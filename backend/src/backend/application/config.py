@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     ws_ping_interval: int = 20
     ws_ping_timeout: int = 20
     log_level: str = "INFO"
+    gamification_base_score: int = 100
+    gamification_streak_multiplier: int = 25
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
