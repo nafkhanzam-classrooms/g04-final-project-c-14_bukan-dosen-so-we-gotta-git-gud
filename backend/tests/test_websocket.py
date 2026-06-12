@@ -109,3 +109,31 @@ async def test_establish_reconnect_after_disconnect(manager):
 
     assert session_id == "reconnect_me"
     assert "reconnect_me" in manager._connections
+
+
+@pytest.mark.asyncio
+async def test_register_duplicate_connection_replaced():
+    manager = WSConnectionManager()
+    session_id = "test-session-123"
+
+    old_ws = AsyncMock()
+    new_ws = AsyncMock()
+
+    # Client A connected
+    await manager.register(session_id, old_ws)
+
+    # CLient B connected
+    await manager.register(session_id, new_ws)
+
+    # Verify that connection:replaced message is sent
+    old_ws.send.assert_called_once()
+    sent_payload = json.loads(old_ws.send.call_args[0][0])
+
+    assert sent_payload["event"] == "connection:replaced"
+    assert sent_payload["data"]["message"] == "Session taken over by another device."
+
+    # Verify that old websocket socket is closed with error code 4000
+    old_ws.close.assert_called_once_with(code=4000, reason="Session replaced by a new connection")
+
+    # Verify that the new socket is saved in the manager
+    assert manager._connections[session_id] is new_ws
