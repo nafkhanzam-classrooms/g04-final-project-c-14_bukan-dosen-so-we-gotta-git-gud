@@ -149,30 +149,30 @@ const exitClass = () => {
 </script>
 
 <template>
-  <div class="h-screen bg-zinc-950 text-neutral-200 font-sans">
-    <header class="h-16 border-b border-zinc-800 bg-zinc-900/80 flex justify-between items-center px-6 sticky top-0 z-[60]">
-      <div class="flex items-center gap-3">
-        <span class="text-zinc-400 font-medium">Room:</span>
-        <span class="text-xl font-mono font-bold text-neutral-100 bg-zinc-800 px-3 py-1 rounded-md">{{ roomId }}</span>
+  <div class="h-screen bg-zinc-950 text-neutral-200 font-sans flex flex-col overflow-hidden">
+    <header class="h-16 border-b border-zinc-800 bg-zinc-900/80 flex justify-between items-center px-4 sm:px-6 shrink-0">
+      <div class="flex items-center gap-2 sm:gap-3">
+        <span class="text-zinc-400 font-medium text-sm sm:text-base">Room:</span>
+        <span class="text-base sm:text-xl font-mono font-bold text-neutral-100 bg-zinc-800 px-2 sm:px-3 py-1 rounded-md">{{ roomId }}</span>
       </div>
-      <div class="flex items-center gap-4">
-        <div class="px-3 py-1 rounded text-xs font-bold uppercase tracking-wide" :class="role === 'host' ? 'bg-neutral-200 text-zinc-900' : 'bg-zinc-800 text-zinc-300'">
+      <div class="flex items-center gap-2 sm:gap-4">
+        <div class="px-2 sm:px-3 py-1 rounded text-xs font-bold uppercase tracking-wide" :class="role === 'host' ? 'bg-neutral-200 text-zinc-900' : 'bg-zinc-800 text-zinc-300'">
           {{ role === 'host' ? 'Host' : 'Student' }}
         </div>
-        <button v-if="role === 'host' && !roomEnded" @click="promptEndSession" class="px-4 py-1.5 bg-red-900/50 hover:bg-red-900 text-red-200 border border-red-800 rounded-md text-sm font-semibold transition">
-          End Session
+        <button v-if="role === 'host' && !roomEnded" @click="promptEndSession" class="px-3 sm:px-4 py-1.5 bg-red-900/50 hover:bg-red-900 text-red-200 border border-red-800 rounded-md text-xs sm:text-sm font-semibold transition">
+          End
         </button>
-        <button v-if="role === 'student' && !roomEnded" @click="exitClass" class="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-md text-sm font-semibold transition">
-          Exit Class
+        <button v-if="role === 'student' && !roomEnded" @click="exitClass" class="px-3 sm:px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-md text-xs sm:text-sm font-semibold transition">
+          Exit
         </button>
       </div>
     </header>
 
-    <div class="h-[calc(100vh-4rem)] overflow-hidden">
-      <div v-if="roomEnded" class="flex flex-col items-center justify-center h-full">
+    <div class="flex-1 overflow-hidden">
+      <div v-if="roomEnded" class="h-full flex flex-col items-center justify-center p-4 overflow-y-auto">
         <div class="w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden">
           <div class="p-6 text-center border-b border-zinc-800">
-            <h1 class="text-3xl font-bold text-neutral-100">Session Ended</h1>
+            <h1 class="text-2xl sm:text-3xl font-bold text-neutral-100">Session Ended</h1>
             <p class="text-zinc-400">Final Leaderboard</p>
           </div>
           <div class="divide-y divide-zinc-800 max-h-[60vh] overflow-y-auto">
@@ -196,10 +196,10 @@ const exitClass = () => {
         </button>
       </div>
 
-      <div v-else-if="phase === 'upload' && role === 'host'" class="flex items-center justify-center h-full">
-        <div class="w-full max-w-2xl bg-zinc-900 border-2 border-dashed border-zinc-700 rounded-2xl p-12 text-center">
-          <h2 class="text-3xl font-bold text-neutral-100 mb-4">Upload Presentation</h2>
-          <p class="text-zinc-400 mb-8">Select a .pptx or .pdf file. Conversion may take a few seconds.</p>
+      <div v-else-if="phase === 'upload' && role === 'host'" class="h-full flex items-center justify-center p-4 overflow-y-auto">
+        <div class="w-full max-w-2xl bg-zinc-900 border-2 border-dashed border-zinc-700 rounded-2xl p-6 sm:p-12 text-center">
+          <h2 class="text-2xl sm:text-3xl font-bold text-neutral-100 mb-4">Upload Presentation</h2>
+          <p class="text-zinc-400 mb-8 text-sm sm:text-base">Select a .pptx or .pdf file. Conversion may take a few seconds.</p>
           <div v-if="statusMessage" class="mb-4 p-3 rounded-lg text-sm" :class="{
             'bg-blue-900/50 text-blue-200': uploadStatus === 'uploading' || uploadStatus === 'converting',
             'bg-red-900/50 text-red-200': uploadStatus === 'error',
@@ -215,21 +215,21 @@ const exitClass = () => {
         </div>
       </div>
 
-      <div v-else-if="phase === 'upload' && role === 'student'" class="flex flex-col items-center justify-center h-full">
+      <div v-else-if="phase === 'upload' && role === 'student'" class="h-full flex flex-col items-center justify-center p-4">
         <div class="animate-pulse w-16 h-16 bg-zinc-800 rounded-full mb-6"></div>
         <h2 class="text-2xl font-bold text-neutral-100">Waiting for Teacher...</h2>
         <p class="text-zinc-500 mt-2">The presentation material is being prepared.</p>
       </div>
 
       <template v-else>
-        <div v-if="role === 'host'" class="flex flex-col h-full relative">
-          <div class="flex-1 flex items-center justify-center p-6">
-            <div class="w-full max-w-6xl bg-black border border-zinc-800 rounded-xl shadow-2xl aspect-video flex items-center justify-center">
-              <img v-if="totalSlides > 0" :src="`${API_BASE_URL}/slides/${roomId}/${slideFilename}`" class="w-full h-full object-contain" alt="Slide" />
+        <div v-if="role === 'host'" class="h-full flex flex-col">
+          <div class="flex-1 flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+            <div class="w-full h-full flex items-center justify-center">
+              <img v-if="totalSlides > 0" :src="`${API_BASE_URL}/slides/${roomId}/${slideFilename}`" class="max-h-full max-w-full object-contain" alt="Slide" />
               <p v-else class="text-zinc-600">Loading slides...</p>
             </div>
           </div>
-          <div class="h-20 border-t border-zinc-800 bg-zinc-900/80 flex items-center justify-between px-6">
+          <div class="h-20 border-t border-zinc-800 bg-zinc-900/80 flex items-center justify-between px-4 sm:px-6 shrink-0">
             <div class="flex gap-2">
               <button @click="prevSlide" class="w-10 h-10 flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 rounded-lg">&larr;</button>
               <button @click="nextSlide" class="w-10 h-10 flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 rounded-lg">&rarr;</button>
@@ -240,23 +240,23 @@ const exitClass = () => {
                   Multiple Choice Quiz
                 </button>
               </div>
-              <button @click="showQuizMenu = !showQuizMenu" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition shadow-lg">
+              <button @click="showQuizMenu = !showQuizMenu" class="px-4 sm:px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition shadow-lg text-sm sm:text-base">
                 Pop Quiz
               </button>
             </div>
             <div class="text-sm text-zinc-500">Slide {{ currentSlide }} / {{ totalSlides }}</div>
           </div>
-          <QuizPanel v-if="phase === 'quiz'" :is-host="true" :room-id="roomId" @close-quiz="endQuiz" />
+          <QuizPanel v-if="phase === 'quiz'" :is-host="true" :room-id="roomId" @close-quiz="endQuiz" class="shrink-0" />
         </div>
 
-        <div v-else class="grid grid-cols-[2fr_1fr] h-full">
-          <div class="flex items-center justify-center p-6">
-            <div class="w-full bg-black border border-zinc-800 rounded-xl shadow-2xl aspect-video flex items-center justify-center">
-              <img v-if="totalSlides > 0" :src="`${API_BASE_URL}/slides/${roomId}/${slideFilename}`" class="w-full h-full object-contain" alt="Slide" />
+        <div v-else class="h-full grid grid-cols-1 lg:grid-cols-[70%_30%] grid-rows-[60%_40%] lg:grid-rows-1">
+          <div class="flex items-center justify-center p-2 sm:p-4 order-1 overflow-hidden">
+            <div class="w-full h-full flex items-center justify-center">
+              <img v-if="totalSlides > 0" :src="`${API_BASE_URL}/slides/${roomId}/${slideFilename}`" class="max-h-full max-w-full object-contain" alt="Slide" />
               <p v-else class="text-zinc-600">Loading slides...</p>
             </div>
           </div>
-          <aside class="border-l border-zinc-800 bg-zinc-900/30 p-4 flex flex-col gap-4 overflow-y-auto">
+          <aside class="border-t lg:border-t-0 lg:border-l border-zinc-800 bg-zinc-900/30 p-4 flex flex-col gap-4 overflow-y-auto order-2">
             <div class="bg-zinc-800/40 border border-zinc-800/80 rounded-lg p-4">
               <div class="text-sm text-zinc-400">You</div>
               <div class="text-xl font-bold">{{ currentUser?.name || 'Student' }}</div>
@@ -271,9 +271,9 @@ const exitClass = () => {
     </div>
 
     <div v-if="showEndSessionModal" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div class="bg-zinc-900 border border-zinc-800 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
-        <h3 class="text-2xl font-bold text-neutral-100 mb-2">End Session?</h3>
-        <p class="text-zinc-400 mb-8">This will close the active room and display the final leaderboard for all participants.</p>
+      <div class="bg-zinc-900 border border-zinc-800 p-6 sm:p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
+        <h3 class="text-xl sm:text-2xl font-bold text-neutral-100 mb-2">End Session?</h3>
+        <p class="text-zinc-400 mb-6 sm:mb-8 text-sm sm:text-base">This will close the active room and display the final leaderboard for all participants.</p>
         <div class="flex gap-4">
           <button @click="showEndSessionModal = false" class="flex-1 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-neutral-200 rounded-xl font-medium">Cancel</button>
           <button @click="confirmEndSession" class="flex-1 px-4 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold">End Session</button>
