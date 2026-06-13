@@ -95,6 +95,10 @@ class ClassroomHandler:
         try:
             data = JoinClassroomPayload.model_validate(payload)
 
+            await self.service.join_room(
+                student_id=session_id, student_name=data.student_name, class_code=data.class_code
+            )
+
             await self.room_registry.add_participant(data.class_code, session_id)
 
             response = ClassroomJoinedResponse(
