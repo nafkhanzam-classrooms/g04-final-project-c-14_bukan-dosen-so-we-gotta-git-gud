@@ -54,12 +54,7 @@ function goToRoom(roomId: string, role: 'host' | 'student', studentName?: string
   currentView.value = 'room'
 }
 
-watch(() => store.roomEnded, (ended) => {
-  if (ended) {
-    clearSession()
-    currentView.value = 'landing'
-  }
-})
+// Only redirect on critical errors (room not found, etc.) – not on roomEnded
 watch(() => store.lastError, (err) => {
   if (err && (err.includes('not found') || err.includes('closed') || err.includes('ended') || err.includes('does not exist'))) {
     clearSession()

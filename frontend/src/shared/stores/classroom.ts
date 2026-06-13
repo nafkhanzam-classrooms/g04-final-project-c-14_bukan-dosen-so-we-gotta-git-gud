@@ -25,7 +25,7 @@ export const useClassroomStore = defineStore('classroom', () => {
 
   const syncFailed = ref(false)
   let syncTimeout: ReturnType<typeof setTimeout> | null = null
-  let currentConnectionId = 0 // ignore stale callbacks
+  let currentConnectionId = 0
 
   let activeRoomCode: string | null = null
   let activeRole: 'host' | 'student' | null = null
@@ -37,7 +37,7 @@ export const useClassroomStore = defineStore('classroom', () => {
     sessionId.value = id
     localStorage.setItem(STORAGE_KEY, id)
   }
-
+  
   const clearSession = () => {
     sessionId.value = null
     localStorage.removeItem(STORAGE_KEY)
@@ -59,7 +59,6 @@ export const useClassroomStore = defineStore('classroom', () => {
     stats: null,
   })
 
-  // Helper to send a message only if the socket is open and matches the current connection
   const send = (event: string, data: any) => {
     if (socket.value?.readyState === WebSocket.OPEN) {
       socket.value.send(JSON.stringify({ event, data }))
@@ -68,23 +67,19 @@ export const useClassroomStore = defineStore('classroom', () => {
     return false
   }
 
-  // Quiz actions 
+  // Quiz actions
   const startQuiz = (classCode: string, questionId: string, options: string[]) => {
     send('quiz:start', { class_code: classCode, question_id: questionId, options })
   }
-
   const answerQuiz = (classCode: string, questionId: string, answer: string) => {
     send('quiz:answer', { class_code: classCode, question_id: questionId, answer })
   }
-
   const stopQuiz = (classCode: string, questionId: string) => {
     send('quiz:stop', { class_code: classCode, question_id: questionId })
   }
-
   const closeQuiz = (classCode: string, questionId: string, correctAnswer: string) => {
     send('quiz:close', { class_code: classCode, question_id: questionId, correct_answer: correctAnswer })
   }
-
   const resetQuiz = () => {
     activeQuiz.value = {
       questionId: null,
@@ -95,17 +90,13 @@ export const useClassroomStore = defineStore('classroom', () => {
       stats: null,
     }
   }
-
   const endClassroom = (classCode: string) => {
     send('classroom:end', { class_code: classCode })
   }
 
-  // WebSocket connection
   const connect = (roomCode: string, role: 'host' | 'student', username: string = 'Anonymous') => {
-    // Disconnect any existing connection first
     disconnect()
 
-    // Store context for possible reconnection
     activeRoomCode = roomCode
     activeRole = role
     activeStudentName = username
@@ -120,17 +111,17 @@ export const useClassroomStore = defineStore('classroom', () => {
     const connectionId = ++currentConnectionId
     socket.value = newSocket
 
-    newSocket.onopen = () => {
-      // Only handle if this is still the current socket
-      if (connectionId !== currentConnectionId || socket.value !== newSocket) return
+    let isReconnectAttempt = false
 
+    newSocket.onopen = () => {
+      if (connectionId !== currentConnectionId || socket.value !== newSocket) return
       isConnected.value = true
       const savedId = loadSavedSession()
       if (savedId) {
-        // Reconnect attempt: send session_id (backend expects {data: {session_id}})
+        isReconnectAttempt = true
         newSocket.send(JSON.stringify({ data: { session_id: savedId } }))
       } else {
-        // New session: send empty object
+        isReconnectAttempt = false
         newSocket.send(JSON.stringify({}))
       }
     }
@@ -141,11 +132,23 @@ export const useClassroomStore = defineStore('classroom', () => {
 
       if (payload.event === 'connection:assigned') {
         saveSession(payload.data.session_id)
-        // After successful connection, join or create the room
-        if (activeRole === 'host') {
-          send('classroom:create', { class_code: activeRoomCode })
-        } else if (activeRole === 'student') {
-          send('classroom:join', { class_code: activeRoomCode, student_name: activeStudentName })
+
+        if (isReconnectAttempt) {
+          // Reconnect: need to re-associate with the room
+          if (activeRole === 'student') {
+            // Student must re-join
+            send('classroom:join', { class_code: activeRoomCode, student_name: activeStudentName })
+          } else if (activeRole === 'host') {
+            // Host cannot re-create (room exists), so just sync
+            send('classroom:sync', { class_code: activeRoomCode })
+          }
+        } else {
+          // Fresh connection: create or join
+          if (activeRole === 'host') {
+            send('classroom:create', { class_code: activeRoomCode })
+          } else if (activeRole === 'student') {
+            send('classroom:join', { class_code: activeRoomCode, student_name: activeStudentName })
+          }
         }
         return
       }
@@ -195,7 +198,6 @@ export const useClassroomStore = defineStore('classroom', () => {
         currentSlide.value = data.current_slide || 1
         if (totalSlides.value > 0) isSlidesReady.value = true
 
-        // Backend sends active_students as an array of student names
         if (Array.isArray(data.active_students)) {
           students.value = data.active_students.map((name: string) => ({ name, score: 0 }))
         } else {
@@ -204,28 +206,23 @@ export const useClassroomStore = defineStore('classroom', () => {
         break
 
       case 'classroom:created':
-        // Host doesn't need extra student data
         lastError.value = null
-        // Request full sync after creation
         send('classroom:sync', { class_code: activeRoomCode })
         break
 
       case 'classroom:joined':
         lastError.value = null
-        // Backend sends { class_code, student_name } – no 'student' object
         if (data.student_name) {
           currentUser.value = { name: data.student_name, score: 0 }
         } else {
           console.warn('classroom:joined missing student_name', data)
         }
-        // Request full sync after joining
         send('classroom:sync', { class_code: activeRoomCode })
         break
 
       case 'classroom:error':
         console.error('Classroom error:', data.message)
         lastError.value = data.message
-        // If room not found, clear local storage and disconnect
         if (data.message?.toLowerCase().includes('not found') || data.message?.toLowerCase().includes('does not exist')) {
           clearSession()
           disconnect()
@@ -272,16 +269,13 @@ export const useClassroomStore = defineStore('classroom', () => {
       case 'classroom:ended':
         finalLeaderboard.value = data.top_students || []
         roomEnded.value = true
-        // Do not disconnect immediately – let the UI show leaderboard
-        // But clear the stored session so that next reload doesn't try to rejoin
-        clearSession()
+        clearSession() // so that a reload doesn't try to rejoin an ended room
         break
     }
   }
 
   const disconnect = () => {
     if (socket.value) {
-      // Remove event handlers to avoid memory leaks
       socket.value.onopen = null
       socket.value.onmessage = null
       socket.value.onclose = null
@@ -300,7 +294,7 @@ export const useClassroomStore = defineStore('classroom', () => {
     activeRoomCode = null
     activeRole = null
     activeStudentName = null
-    currentConnectionId++ // invalidate any pending callbacks
+    currentConnectionId++
   }
 
   const logout = () => {
