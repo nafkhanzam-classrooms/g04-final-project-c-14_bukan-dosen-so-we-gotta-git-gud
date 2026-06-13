@@ -1,0 +1,59 @@
+<svg
+    width="256"
+    height="256"
+    viewBox="0 0 256 256"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+>
+    <!-- Background -->
+    <rect width="256" height="256" rx="48" fill="#09090B"/>
+
+    <!-- Book -->
+    <path
+        d="M64 72C64 63.2 71.2 56 80 56H128V184H80C71.2 184 64 191.2 64 200V72Z"
+        fill="#18181B"
+        stroke="#3F3F46"
+        stroke-width="6"
+    />
+
+    <path
+        d="M192 72C192 63.2 184.8 56 176 56H128V184H176C184.8 184 192 191.2 192 200V72Z"
+        fill="#18181B"
+        stroke="#3F3F46"
+        stroke-width="6"
+    />
+
+    <!-- Leaf -->
+    <path
+        d="M128 82
+           C168 90 190 120 184 154
+           C178 188 148 204 128 210
+           C108 204 78 188 72 154
+           C66 120 88 90 128 82Z"
+        fill="#22C55E"
+    />
+
+    <!-- Leaf vein -->
+    <path
+        d="M128 92V196"
+        stroke="#09090B"
+        stroke-width="6"
+        stroke-linecap="round"
+    />
+
+    <path
+        d="M128 132
+           C112 124 102 114 94 102"
+        stroke="#09090B"
+        stroke-width="4"
+        stroke-linecap="round"
+    />
+
+    <path
+        d="M128 156
+           C144 148 154 138 162 126"
+        stroke="#09090B"
+        stroke-width="4"
+        stroke-linecap="round"
+    />
+</svg>
