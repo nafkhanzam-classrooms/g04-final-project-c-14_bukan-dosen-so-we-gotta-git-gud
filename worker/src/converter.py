@@ -5,16 +5,20 @@ import glob
 
 logger = logging.getLogger(__name__)
 
+
 async def convert_single_image(jpg_path: str, webp_path: str) -> None:
     """Helper to convert a single JPEG to WebP concurrently and clean up."""
     logger.info(f"Converting {jpg_path} -> {webp_path}")
     cwebp_proc = await asyncio.create_subprocess_exec(
         "cwebp",
-        "-q", "80",
-        "-m", "4",     
-        "-mt",         
+        "-q",
+        "80",
+        "-m",
+        "4",
+        "-mt",
         jpg_path,
-        "-o", webp_path,
+        "-o",
+        webp_path,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -22,9 +26,10 @@ async def convert_single_image(jpg_path: str, webp_path: str) -> None:
     if cwebp_proc.returncode != 0:
         logger.error(f"cwebp failed for {jpg_path}: {stderr.decode()}")
         raise RuntimeError(f"cwebp failed: {stderr.decode()}")
-    
+
     # Remove the intermediate JPEG file immediately
     os.remove(jpg_path)
+
 
 async def process_pdf(room_code: str, pdf_filepath: str, volume_dir: str) -> None:
     output_dir = os.path.join(volume_dir, room_code)
@@ -34,8 +39,9 @@ async def process_pdf(room_code: str, pdf_filepath: str, volume_dir: str) -> Non
     logger.info(f"Extracting PDF to JPEG for room {room_code}...")
     pdftoppm_proc = await asyncio.create_subprocess_exec(
         "pdftoppm",
-        "-jpeg",  
-        "-r", "150",
+        "-jpeg",
+        "-r",
+        "150",
         pdf_filepath,
         os.path.join(output_dir, "slide"),
         stdout=asyncio.subprocess.PIPE,
@@ -57,7 +63,7 @@ async def process_pdf(room_code: str, pdf_filepath: str, volume_dir: str) -> Non
     for jpg_path in jpg_files:
         webp_path = jpg_path.rsplit(".", 1)[0] + ".webp"
         tasks.append(convert_single_image(jpg_path, webp_path))
-    
+
     # Run all cwebp transformations in parallel
     await asyncio.gather(*tasks)
     logger.info(f"WebP conversion complete for {room_code}.")
@@ -68,17 +74,19 @@ async def process_pptx(room_code: str, pptx_filepath: str, volume_dir: str) -> N
     os.makedirs(output_dir, exist_ok=True)
 
     print(f"Converting PPTX to PDF for room {room_code}...")
-    
+
     # Setting an explicit temporary UserInstallation prevents LibreOffice lock failures
     libreoffice_proc = await asyncio.create_subprocess_exec(
         "libreoffice",
-        "-env:UserInstallation=file:///tmp/libo_user", 
+        "-env:UserInstallation=file:///tmp/libo_user",
         "--headless",
         "--nologo",
         "--nofirststartwizard",
-        "--convert-to", "pdf",
+        "--convert-to",
+        "pdf",
         pptx_filepath,
-        "--outdir", output_dir,
+        "--outdir",
+        output_dir,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
