@@ -58,7 +58,8 @@ const closeOverlay = () => {
     <div v-if="store.activeQuiz.questionId" class="fixed inset-0 bg-zinc-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-8 z-50">
 
       <template v-if="store.activeQuiz.isActive">
-        <h3 class="text-3xl font-bold text-neutral-100 mb-8">Select an Answer</h3>
+        <h3 class="text-3xl font-bold text-neutral-100 mb-8">{{ store.activeQuiz.questionId }}</h3>
+        <h4 class="text-xl text-zinc-400 mb-6">Select an Answer</h4>
         <div class="grid grid-cols-2 gap-4 w-full max-w-lg">
           <button
             v-for="opt in store.activeQuiz.options"
