@@ -6,12 +6,14 @@ from classroom.domain.class_payload import (
     CreateClassPayload,
     EndClassroomPayload,
     JoinClassroomPayload,
+    SyncClassroomPayload,
 )
 from classroom.domain.response import (
     ClassroomCreatedResponse,
     ClassroomEndedResponse,
     ClassroomErrorResponse,
     ClassroomJoinedResponse,
+    ClassroomStateSyncResponse,
     TopStudentResponse,
 )
 from gamification.application.gamification_service import GamificationService
@@ -118,24 +120,42 @@ class ClassroomHandler:
             )
             await self._send_error(session_id, f"Failed to join classroom: {e}")
 
-    async def _handle_sync(self, session_id: str, _payload: dict[str, Any]) -> None:
+    async def _handle_sync(self, session_id: str, payload: dict[str, Any]) -> None:
+        try:
+            data = SyncClassroomPayload.model_validate(payload)
+        except ValueError as e:
+            logger.warning(f"Validation error on room sync (Session: {session_id}): {e}")
+            await self._send_error(session_id, str(e))
+            return
+
         class_code = await self.room_registry.get_room_by_session(session_id)
-        if not class_code:
-            logger.info(f"Sync ignored: Session '{session_id}' is not associated with any class.")
+        if not class_code or class_code != data.class_code:
+            logger.info(f"Sync ignored: Session '{session_id}' mismatch or not in class.")
+            await self._send_error(session_id, "Session mismatch or not in class.", data.class_code)
             return
 
         room_state = await self.service.get_room_state(class_code)
         if not room_state:
-            await self._send_error(session_id, "Failed to fetch classroom data.")
+            await self._send_error(session_id, "Failed to fetch classroom data.", data.class_code)
             return
 
+        response_data = ClassroomStateSyncResponse(
+            class_code=room_state.class_code,
+            host_session_id=room_state.host_session_id,
+            current_slide=str(room_state.current_slide),
+            total_slides=str(room_state.total_slides),
+            active_students=[student.name for student in room_state.active_students.values()],
+        )
+
         await self.ws_manager.send(
-            event="classroom:state_sync", session_id=session_id, data=room_state.model_dump()
+            event="classroom:state_sync", session_id=session_id, data=response_data.model_dump()
         )
         logger.info(f"Class state '{class_code}' successfully synced for session '{session_id}'.")
 
-    async def _send_error(self, session_id: str, error_message: str) -> None:
-        response = ClassroomErrorResponse(message=error_message)
+    async def _send_error(
+        self, session_id: str, error_message: str, class_code: str | None = None
+    ) -> None:
+        response = ClassroomErrorResponse(message=error_message, class_code=class_code)
         await self.ws_manager.send(
             event="classroom:error",
             session_id=session_id,

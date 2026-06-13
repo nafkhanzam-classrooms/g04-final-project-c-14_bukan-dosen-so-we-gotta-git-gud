@@ -12,3 +12,7 @@ class JoinClassroomPayload(BaseModel):
 
 class EndClassroomPayload(BaseModel):
     class_code: str
+
+
+class SyncClassroomPayload(BaseModel):
+    class_code: str
