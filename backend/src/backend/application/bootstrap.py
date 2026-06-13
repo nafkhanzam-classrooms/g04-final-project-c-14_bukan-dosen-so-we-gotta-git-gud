@@ -78,9 +78,10 @@ class Application:
             service=self.slide_service,
             broadcast_service=self.broadcast_service,
             ws_manager=self.ws_manager,
+            event_bus=self.event_bus,
         )
 
-        self.quiz_handler = QuizHandler(self.quiz_service, self.ws_manager)
+        self.quiz_handler = QuizHandler(self.quiz_service, self.ws_manager, self.event_bus)
 
         # Event handler and router
         self.event_handler = RoomEventHandler(self.classroom_service, self.broadcast_service)

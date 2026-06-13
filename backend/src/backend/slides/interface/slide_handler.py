@@ -2,6 +2,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from shared.application.room.broadcast import RoomBroadcastService
+from shared.domain.redis.event_publisher import EventPublisher
 from shared.infrastructure.websocket.manager import WSConnectionManager
 from slides.application.slide_service import SlideService
 from slides.domain.response import SlidesChangedResponse, SlidesErrorResponse
@@ -19,10 +20,12 @@ class SlideHandler:
         service: SlideService,
         broadcast_service: RoomBroadcastService,
         ws_manager: WSConnectionManager,
+        event_bus: EventPublisher,
     ):
         self.service = service
         self.broadcast_service = broadcast_service
         self.ws_manager = ws_manager
+        self.event_bus = event_bus
         self._event_handlers: dict[str, Callable[[str, dict[str, Any]], Awaitable[None]]] = {
             "slides:change": self._handle_slide_change,
         }
@@ -44,11 +47,17 @@ class SlideHandler:
             )
 
             response = SlidesChangedResponse(slide_number=data.slide_number)
+
             await self.broadcast_service.broadcast(
                 class_code=data.class_code,
                 event="slides:changed",
                 data=response.model_dump(),
             )
+
+            await self.event_bus.publish(
+                "room_events", {"event": "room:activity", "class_code": data.class_code}
+            )
+            logger.info("room:activity published for class %s (slide change)", data.class_code)
 
             logger.info(
                 "Slide changed to %d in room '%s' by host %s",

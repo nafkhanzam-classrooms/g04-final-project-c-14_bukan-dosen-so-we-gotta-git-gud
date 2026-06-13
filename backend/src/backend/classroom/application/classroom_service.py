@@ -7,15 +7,16 @@ logger = logging.getLogger(__name__)
 
 
 class ClassroomService:
-    def __init__(self, repository: ClassroomRepository):
+    def __init__(self, repository: ClassroomRepository, room_ttl: int = 1800):
         self.repo = repository
+        self.room_ttl = room_ttl
 
     async def create_room(self, host_id: str, class_code: str) -> None:
         if await self.repo.get_room(class_code):
             logger.warning(f"Room creation failed: Code '{class_code}' already exists.")
             raise ValueError("Class code is already in use.")
 
-        await self.repo.save_room(class_code, host_id)
+        await self.repo.save_room(class_code, host_id, self.room_ttl)
         logger.info(f"Room '{class_code}' created successfully by host '{host_id}'.")
 
     async def join_room(self, student_id: str, student_name: str, class_code: str) -> StudentState:
@@ -75,3 +76,29 @@ class ClassroomService:
     async def delete_room(self, class_code: str) -> None:
         await self.repo.delete_room_data(class_code)
         logger.info("Room '%s' domain data successfully deleted.", class_code)
+
+    async def remove_student_from_room(self, class_code: str, student_id: str) -> None:
+        await self.repo.remove_student(class_code, student_id)
+        logger.info("Student %s removed from classroom %s via service", student_id, class_code)
+
+    async def refresh_ttl(self, class_code: str) -> None:
+        await self.repo.refresh_room_ttl(class_code, self.room_ttl)
+        logger.debug("TTL refreshed via service for class %s", class_code)
+
+    async def handle_student_disconnect(self, session_id: str, class_code: str) -> None:
+        room = await self.repo.get_room(class_code)
+        if not room:
+            logger.warning("Room %s not found during disconnect of %s", class_code, session_id)
+            return
+
+        host_id = room.get("host_session_id")
+        if session_id == host_id:
+            logger.info(
+                "Host %s disconnected from class %s: waiting for TTL", session_id, class_code
+            )
+            return
+
+        await self.remove_student_from_room(class_code, session_id)
+        logger.info(
+            "Student %s disconnected from class %s: Redis data removed", session_id, class_code
+        )

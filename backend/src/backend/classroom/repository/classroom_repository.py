@@ -12,13 +12,17 @@ class ClassroomRedisRepository(ClassroomRepository):
     def __init__(self, redis_client: Redis):
         self.redis = redis_client
 
-    async def save_room(self, class_code: str, host_session_id: str) -> None:
+    async def save_room(self, class_code: str, host_session_id: str, ttl: int) -> None:
         logger.debug("Saving room %s with host %s", class_code, host_session_id)
         key = f"room:{class_code}"
+        students_key = f"room:{class_code}:students"
         await self.redis.hset(
             key,
             mapping={"host_session_id": host_session_id, "current_slide": "1", "total_slides": "0"},
         )
+        await self.redis.expire(key, ttl)
+        await self.redis.expire(students_key, ttl)
+        logger.info("Room %s created with TTL %d seconds", class_code, ttl)
 
     async def get_room(self, class_code: str) -> dict[str, str] | None:
         data = await self.redis.hgetall(f"room:{class_code}")
@@ -44,6 +48,25 @@ class ClassroomRedisRepository(ClassroomRepository):
         data = await self.redis.hgetall(key)
         logger.debug("Fetched %d students for room %s", len(data), class_code)
         return cast("dict[str, str]", data)
+
+    async def remove_student(self, class_code: str, session_id: str) -> None:
+        key = f"room:{class_code}:students"
+        removed = await self.redis.hdel(key, session_id)
+        if removed:
+            logger.info("Student %s removed from Redis for class %s", session_id, class_code)
+        else:
+            logger.debug(
+                "Student %s was not in Redis for class %s (already removed?)",
+                session_id,
+                class_code,
+            )
+
+    async def refresh_room_ttl(self, class_code: str, ttl: int = 1800) -> None:
+        key = f"room:{class_code}"
+        students_key = f"room:{class_code}:students"
+        await self.redis.expire(key, ttl)
+        await self.redis.expire(students_key, ttl)
+        logger.debug("TTL refreshed for room %s (%d seconds)", class_code, ttl)
 
     async def delete_room_data(self, class_code: str) -> None:
         await self.redis.delete(f"room:{class_code}", f"room:{class_code}:students")

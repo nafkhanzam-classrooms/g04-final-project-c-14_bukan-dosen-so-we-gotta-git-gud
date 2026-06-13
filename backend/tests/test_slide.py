@@ -2,10 +2,16 @@ from unittest.mock import AsyncMock
 
 import pytest
 from shared.application.room.broadcast import RoomBroadcastService
+from shared.domain.redis.event_publisher import EventPublisher
 from shared.infrastructure.websocket.manager import WSConnectionManager
 from slides.application.slide_service import SlideService
 from slides.domain.repository_interface import SlideRepository
 from slides.interface.slide_handler import SlideHandler
+
+
+@pytest.fixture
+def mock_event_bus():
+    return AsyncMock(spec=EventPublisher)
 
 
 @pytest.mark.asyncio
@@ -83,7 +89,7 @@ async def test_service_change_slide_room_not_found() -> None:
 
 
 @pytest.mark.asyncio
-async def test_handler_change_slide_success() -> None:
+async def test_handler_change_slide_success(mock_event_bus: AsyncMock) -> None:
     mock_service = AsyncMock(spec=SlideService)
     mock_service.change_slide.return_value = ["student_1", "student_2"]
 
@@ -94,6 +100,7 @@ async def test_handler_change_slide_success() -> None:
         service=mock_service,
         broadcast_service=mock_broadcast_service,
         ws_manager=mock_ws_manager,
+        event_bus=mock_event_bus,
     )
 
     payload = {"class_code": "XYZ123", "slide_number": 4}
@@ -109,11 +116,16 @@ async def test_handler_change_slide_success() -> None:
         data={"slide_number": 4},
     )
 
+    mock_event_bus.publish.assert_called_once_with(
+        "room_events",
+        {"event": "room:activity", "class_code": "XYZ123"},
+    )
+
     mock_ws_manager.send.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_handler_change_slide_permission_denied() -> None:
+async def test_handler_change_slide_permission_denied(mock_event_bus: AsyncMock) -> None:
     mock_service = AsyncMock(spec=SlideService)
     mock_service.change_slide.side_effect = PermissionError(
         "Only Host is allowed to change the slide."
@@ -126,6 +138,7 @@ async def test_handler_change_slide_permission_denied() -> None:
         service=mock_service,
         broadcast_service=mock_broadcast_service,
         ws_manager=mock_ws_manager,
+        event_bus=mock_event_bus,
     )
 
     payload = {"class_code": "XYZ123", "slide_number": 4}
@@ -138,3 +151,4 @@ async def test_handler_change_slide_permission_denied() -> None:
     )
 
     mock_broadcast_service.broadcast.assert_not_called()
+    mock_event_bus.publish.assert_not_called()
