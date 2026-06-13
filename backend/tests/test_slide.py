@@ -147,7 +147,7 @@ async def test_handler_change_slide_permission_denied(mock_event_bus: AsyncMock)
     mock_ws_manager.send.assert_called_once_with(
         "slides:error",
         "hacker_123",
-        data={"class_code": None, "message": "Only Host is allowed to change the slide."},
+        data={"class_code": "XYZ123", "message": "Only Host is allowed to change the slide."},
     )
 
     mock_broadcast_service.broadcast.assert_not_called()

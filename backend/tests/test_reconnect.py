@@ -3,32 +3,25 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 import websockets
-from classroom.application.classroom_service import ClassroomService
 from classroom.domain.classroom import Classroom, StudentState
 from classroom.interface.classroom_handler import ClassroomHandler
-from gamification.application.gamification_service import GamificationService
-from quiz.application.quiz_service import QuizService
-from shared.application.room.broadcast import RoomBroadcastService
-from shared.domain.room.registry import RoomRegistry
-from shared.infrastructure.websocket.manager import WSConnectionManager
 
 
-# ClassroomHandler handles classroom:sync
 @pytest.mark.asyncio
 async def test_classroom_handler_sync_event_sends_state_sync():
     """
     Flow:
-    1. Frontend (teacher/student) sends classroom:sync.
+    1. Frontend (teacher/student) sends classroom:sync with a valid class_code.
     2. Handler detects class_code via room_registry.
     3. Handler fetches the latest state from the service.
     4. Backend replies with classroom:state_sync.
     """
-    service = AsyncMock(spec=ClassroomService)
-    ws_manager = AsyncMock(spec=WSConnectionManager)
-    room_registry = AsyncMock(spec=RoomRegistry)
-    broadcast_service = AsyncMock(spec=RoomBroadcastService)
-    gamification_service = AsyncMock(spec=GamificationService)
-    quiz_service = AsyncMock(spec=QuizService)
+    service = AsyncMock()
+    ws_manager = AsyncMock()
+    room_registry = AsyncMock()
+    broadcast_service = AsyncMock()
+    gamification_service = AsyncMock()
+    quiz_service = AsyncMock()
 
     handler = ClassroomHandler(
         service=service,
@@ -47,35 +40,45 @@ async def test_classroom_handler_sync_event_sends_state_sync():
         current_slide=5,
         total_slides=15,
         active_students={
-            "sess_student_A": StudentState(name="Andi", is_online=True, stars=3),
+            "sess_student_A": StudentState(name="Andi"),
         },
     )
 
     room_registry.get_room_by_session.return_value = class_code
     service.get_room_state.return_value = room_state
 
-    await handler("classroom:sync", session_id, {})
+    # Payload must include the class_code (required by SyncClassroomPayload)
+    await handler("classroom:sync", session_id, {"class_code": class_code})
 
     room_registry.get_room_by_session.assert_awaited_once_with(session_id)
     service.get_room_state.assert_awaited_once_with(class_code)
     ws_manager.send.assert_awaited_once_with(
         event="classroom:state_sync",
         session_id=session_id,
-        data=room_state.model_dump(),
+        data={
+            "class_code": "BIO101",
+            "host_session_id": "host_sess",
+            "current_slide": "5",
+            "total_slides": "15",
+            "active_students": ["Andi"],
+        },
     )
 
 
 @pytest.mark.asyncio
 async def test_classroom_handler_sync_ignores_when_not_in_room():
-    """If the session is not associated with any room, the handler does nothing."""
-    service = AsyncMock(spec=ClassroomService)
-    ws_manager = AsyncMock(spec=WSConnectionManager)
-    room_registry = AsyncMock(spec=RoomRegistry)
+    """
+    If the session is not associated with any room, the handler sends an error
+    (it does not silently ignore the request).
+    """
+    service = AsyncMock()
+    ws_manager = AsyncMock()
+    room_registry = AsyncMock()
     room_registry.get_room_by_session.return_value = None
 
-    broadcast_service = AsyncMock(spec=RoomBroadcastService)
-    gamification_service = AsyncMock(spec=GamificationService)
-    quiz_service = AsyncMock(spec=QuizService)
+    broadcast_service = AsyncMock()
+    gamification_service = AsyncMock()
+    quiz_service = AsyncMock()
 
     handler = ClassroomHandler(
         service=service,
@@ -86,13 +89,17 @@ async def test_classroom_handler_sync_ignores_when_not_in_room():
         quiz_service=quiz_service,
     )
 
-    await handler("classroom:sync", "lonely_sess", {})
+    await handler("classroom:sync", "lonely_sess", {"class_code": "some_class"})
 
-    service.get_room_state.assert_not_called()
-    ws_manager.send.assert_not_called()
+    # The handler sends an error when the session does not belong to the given class
+    ws_manager.send.assert_called_once()
+    call_args = ws_manager.send.call_args
+
+    assert call_args.kwargs["event"] == "classroom:error"
+    error_message = call_args.kwargs["data"]["message"]
+    assert "not in class" in error_message or "mismatch" in error_message
 
 
-# Full reconnect flow simulation inside the main handler
 @pytest.mark.asyncio
 @patch("application.main.Application")
 async def test_full_reconnect_flow_sync_after_reconnect(mock_app_class):
@@ -128,7 +135,7 @@ async def test_full_reconnect_flow_sync_after_reconnect(mock_app_class):
     ws = AsyncMock(spec=websockets.ServerConnection)
     ws.recv.return_value = json.dumps({"data": {"session_id": "existing_sess"}})
     ws.__aiter__.return_value = [
-        json.dumps({"event": "classroom:sync", "data": {}}),
+        json.dumps({"event": "classroom:sync", "data": {"class_code": "BIO101"}}),
     ]
 
     from application.message_parser import process_raw_message
@@ -147,15 +154,12 @@ async def test_full_reconnect_flow_sync_after_reconnect(mock_app_class):
             await ws_manager.unregister(session_id)
             await room_registry.remove_participant_by_session(session_id)
 
-    # Execute
     await handler(ws)
 
-    # Assertions
     ws_manager.establish.assert_awaited_once_with(ws)
     ws_manager.send.assert_any_call(
         "connection:assigned", "existing_sess", {"session_id": "existing_sess"}
     )
-    # classroom:state_sync must have been sent
     ws_manager.send.assert_any_call(
         "classroom:state_sync",
         "existing_sess",
@@ -177,12 +181,12 @@ async def test_teacher_reconnect_recovers_host_privileges():
     After reconnecting, the teacher's session must be identified as the host
     and the state sync must reflect that.
     """
-    service = AsyncMock(spec=ClassroomService)
-    ws_manager = AsyncMock(spec=WSConnectionManager)
-    room_registry = AsyncMock(spec=RoomRegistry)
-    broadcast_service = AsyncMock(spec=RoomBroadcastService)
-    gamification_service = AsyncMock(spec=GamificationService)
-    quiz_service = AsyncMock(spec=QuizService)
+    service = AsyncMock()
+    ws_manager = AsyncMock()
+    room_registry = AsyncMock()
+    broadcast_service = AsyncMock()
+    gamification_service = AsyncMock()
+    quiz_service = AsyncMock()
 
     handler = ClassroomHandler(
         service=service,
@@ -206,11 +210,17 @@ async def test_teacher_reconnect_recovers_host_privileges():
     room_registry.get_room_by_session.return_value = class_code
     service.get_room_state.return_value = room_state
 
-    await handler("classroom:sync", teacher_session_id, {})
+    # Include the class_code in the payload
+    await handler("classroom:sync", teacher_session_id, {"class_code": class_code})
 
-    # The sync response must contain the host_session_id
     ws_manager.send.assert_awaited_once_with(
         event="classroom:state_sync",
         session_id=teacher_session_id,
-        data=room_state.model_dump(),
+        data={
+            "class_code": "MATH101",
+            "host_session_id": "teacher_old_sess_reconnect",
+            "current_slide": "3",
+            "total_slides": "20",
+            "active_students": ["Budi"],
+        },
     )
