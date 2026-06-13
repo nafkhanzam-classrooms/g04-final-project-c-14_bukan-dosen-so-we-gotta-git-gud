@@ -108,7 +108,6 @@ async def test_join_room_success(classroom_service, mock_repository):
 
     assert isinstance(student, StudentState)
     assert student.name == "Budi"
-    assert student.is_online is True
 
     mock_repository.add_student.assert_called_once_with("BIOL101", "std_99", student)
 
@@ -320,7 +319,7 @@ async def test_update_total_slides(redis_repository, mock_redis):
 
 @pytest.mark.asyncio
 async def test_add_student(redis_repository, mock_redis):
-    student = StudentState(name="Budi", is_online=True, stars=5)
+    student = StudentState(name="Budi")
     await redis_repository.add_student("BIO101", "std_1", student)
 
     mock_redis.hset.assert_called_once_with(

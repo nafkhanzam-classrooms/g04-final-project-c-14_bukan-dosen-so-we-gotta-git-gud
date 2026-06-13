@@ -39,8 +39,10 @@ class SlideHandler:
             logger.warning("Unknown slides event '%s' from session %s", event_type, session_id)
 
     async def _handle_slide_change(self, session_id: str, payload: dict[str, Any]) -> None:
+        class_code = None
         try:
             data = ChangeSlidePayload.model_validate(payload)
+            class_code = data.class_code
 
             await self.service.change_slide(
                 session_id=session_id, class_code=data.class_code, slide_number=data.slide_number
@@ -68,17 +70,22 @@ class SlideHandler:
 
         except PermissionError as e:
             await self.ws_manager.send(
-                "slides:error", session_id, data=SlidesErrorResponse(message=str(e)).model_dump()
+                "slides:error",
+                session_id,
+                data=SlidesErrorResponse(message=str(e), class_code=class_code).model_dump(),
             )
         except ValueError as e:
             await self.ws_manager.send(
-                "slides:error", session_id, data=SlidesErrorResponse(message=str(e)).model_dump()
+                "slides:error",
+                session_id,
+                data=SlidesErrorResponse(message=str(e), class_code=class_code).model_dump(),
             )
-
         except Exception:
             logger.exception("Unexpected error in slide change handler for session %s", session_id)
             await self.ws_manager.send(
                 "slides:error",
                 session_id,
-                data=SlidesErrorResponse(message="Internal server error").model_dump(),
+                data=SlidesErrorResponse(
+                    message="Internal server error", class_code=class_code
+                ).model_dump(),
             )
