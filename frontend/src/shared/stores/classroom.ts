@@ -119,10 +119,16 @@ export const useClassroomStore = defineStore('classroom', () => {
       const savedId = loadSavedSession()
       if (savedId) {
         isReconnectAttempt = true
-        newSocket.send(JSON.stringify({ data: { session_id: savedId } }))
+        newSocket.send(JSON.stringify({
+          event: 'connection:init',
+          data: { session_id: savedId }
+        }))
       } else {
         isReconnectAttempt = false
-        newSocket.send(JSON.stringify({}))
+        newSocket.send(JSON.stringify({
+          event: 'connection:init',
+          data: {}
+        }))
       }
     }
 
@@ -133,22 +139,10 @@ export const useClassroomStore = defineStore('classroom', () => {
       if (payload.event === 'connection:assigned') {
         saveSession(payload.data.session_id)
 
-        if (isReconnectAttempt) {
-          // Reconnect: need to re-associate with the room
-          if (activeRole === 'student') {
-            // Student must re-join
-            send('classroom:join', { class_code: activeRoomCode, student_name: activeStudentName })
-          } else if (activeRole === 'host') {
-            // Host cannot re-create (room exists), so just sync
-            send('classroom:sync', { class_code: activeRoomCode })
-          }
-        } else {
-          // Fresh connection: create or join
-          if (activeRole === 'host') {
-            send('classroom:create', { class_code: activeRoomCode })
-          } else if (activeRole === 'student') {
-            send('classroom:join', { class_code: activeRoomCode, student_name: activeStudentName })
-          }
+        if (activeRole === 'host') {
+          send('classroom:create', { class_code: activeRoomCode })
+        } else if (activeRole === 'student') {
+          send('classroom:join', { class_code: activeRoomCode, student_name: activeStudentName })
         }
         return
       }
@@ -223,9 +217,11 @@ export const useClassroomStore = defineStore('classroom', () => {
       case 'classroom:error':
         console.error('Classroom error:', data.message)
         lastError.value = data.message
+        // Persist the error so it's not lost
         if (data.message?.toLowerCase().includes('not found') || data.message?.toLowerCase().includes('does not exist')) {
-          clearSession()
+          console.warn('Classroom not found, disconnecting')
           disconnect()
+          clearSession()
         }
         break
 

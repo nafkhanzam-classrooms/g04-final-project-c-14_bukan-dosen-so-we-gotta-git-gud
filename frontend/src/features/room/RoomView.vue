@@ -16,9 +16,13 @@ const store = useClassroomStore()
 const { currentSlide, totalSlides, isSlidesReady, lastError, currentUser, roomEnded, finalLeaderboard } = storeToRefs(store)
 
 type SessionPhase = 'upload' | 'present' | 'quiz' | 'ended'
-const phase = ref<SessionPhase>('upload')
 
-// Update phase when slides become ready (after upload or after reconnect)
+function initialPhase(): SessionPhase {
+  if (roomEnded.value) return 'ended'
+  if (totalSlides.value > 0 && isSlidesReady.value) return 'present'
+  return 'upload'
+}
+const phase = ref<SessionPhase>(initialPhase())
 watch([totalSlides, isSlidesReady], ([slides, ready]) => {
   if (props.role === 'host' && ready && slides > 0 && phase.value !== 'quiz') {
     phase.value = 'present'
@@ -29,12 +33,6 @@ const uploadStatus = ref<'idle' | 'uploading' | 'converting' | 'success' | 'erro
 const statusMessage = ref('')
 let conversionTimeout: ReturnType<typeof setTimeout> | null = null
 const fileToUpload = ref<File | null>(null)
-
-watch(lastError, (err) => {
-  if (err) {
-    emit('exit')
-  }
-})
 
 watch([isSlidesReady, totalSlides], ([ready, slides]) => {
   if (ready && slides > 0) {
