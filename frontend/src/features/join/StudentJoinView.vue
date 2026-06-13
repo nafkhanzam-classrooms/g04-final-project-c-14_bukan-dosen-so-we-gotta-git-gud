@@ -1,40 +1,55 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { ref, watch, onMounted } from 'vue'
 
-const router = useRouter()
-const route = useRoute()
+const props = defineProps<{
+  errorMessage?: string
+}>()
+
 const roomCode = ref('')
 const username = ref('')
-const errorMessage = ref('')
+const displayError = ref('')
 
 onMounted(() => {
-  if (route.query.error) {
-    errorMessage.value = route.query.error as string
-    router.replace({ path: '/join', query: {} })
+  if (props.errorMessage) {
+    displayError.value = props.errorMessage
     setTimeout(() => {
-      errorMessage.value = ''
+      displayError.value = ''
     }, 5000)
   }
 })
 
+watch(() => props.errorMessage, (newError) => {
+  if (newError) {
+    displayError.value = newError
+    setTimeout(() => {
+      displayError.value = ''
+    }, 5000)
+  }
+})
+
+const emit = defineEmits<{
+  (e: 'joined', roomId: string, studentName: string): void
+  (e: 'back'): void
+}>()
+
 const joinRoom = () => {
   if (roomCode.value && username.value) {
-    router.push(`/room/${roomCode.value.toUpperCase()}?studentName=${encodeURIComponent(username.value)}`)
+    emit('joined', roomCode.value.toUpperCase(), username.value)
   }
 }
+
 </script>
 
 <template>
-  <button @click="router.push('/')" class="text-zinc-400 hover:text-neutral-200 text-sm absolute top-4 left-4">
+  <button @click="emit('back')" class="text-zinc-400 hover:text-neutral-200 text-sm absolute top-4 left-4">
     ← Back to Home
   </button>
   <div class="flex flex-col items-center justify-center h-full px-6">
     <div class="w-full max-w-md bg-zinc-900 border border-zinc-800 p-8 rounded-2xl shadow-2xl">
       <div class="flex justify-end mb-2">
       </div>
-      <div v-if="errorMessage" class="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm">
-        {{ errorMessage }}
+      <div v-if="displayError" class="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm">
+        {{ displayError }}
       </div>
       <h1 class="text-2xl font-bold text-neutral-100 mb-6 text-center">Join Session</h1>
       

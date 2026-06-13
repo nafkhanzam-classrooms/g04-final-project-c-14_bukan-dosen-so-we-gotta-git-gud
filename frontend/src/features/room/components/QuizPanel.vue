@@ -1,15 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
 import { useClassroomStore } from '@/shared/stores/classroom'
 
-const props = defineProps<{
-  isHost: boolean
-}>()
+const props = defineProps<{ isHost: boolean; roomId: string }>()
 
 const emit = defineEmits(['close-quiz'])
-const route = useRoute()
-const roomId = route.params.roomId as string
 const store = useClassroomStore()
 
 const newQuestionId = ref('Q1')
@@ -34,23 +29,23 @@ const totalResponses = computed(() => {
 const startQuiz = () => {
   const options = newOptionsStr.value.split(',').map(s => s.trim()).filter(Boolean)
   if (options.length < 2) return
-  store.startQuiz(roomId, newQuestionId.value, options)
+  store.startQuiz(props.roomId, newQuestionId.value, options)
 }
 
 const stopQuiz = () => {
   if (store.activeQuiz.questionId)
-    store.stopQuiz(roomId, store.activeQuiz.questionId)
+    store.stopQuiz(props.roomId, store.activeQuiz.questionId)
 }
 
 const setCorrectAnswer = (opt: string) => {
   if (!store.activeQuiz.questionId) return
-  store.closeQuiz(roomId, store.activeQuiz.questionId, opt)
+  store.closeQuiz(props.roomId, store.activeQuiz.questionId, opt)
 }
 
 const answerAndRemember = (opt: string) => {
   if (studentAnswer.value) return // Prevent multiple answers locally
   studentAnswer.value = opt
-  store.answerQuiz(roomId, store.activeQuiz.questionId!, opt)
+  store.answerQuiz(props.roomId, store.activeQuiz.questionId!, opt)
 }
 
 const closeOverlay = () => {
