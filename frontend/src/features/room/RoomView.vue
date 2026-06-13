@@ -9,18 +9,14 @@ const props = defineProps<{
   role: 'host' | 'student'
   studentName: string | null
 }>()
-
-const emit = defineEmits<{
-  (e: 'exit'): void
-}>()
+const emit = defineEmits(['exit'])
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || ''
-const isHost = props.role === 'host'
 const store = useClassroomStore()
 const { currentSlide, totalSlides, isSlidesReady, lastError, currentUser, roomEnded, finalLeaderboard } = storeToRefs(store)
 
 type SessionPhase = 'upload' | 'present' | 'quiz' | 'ended'
-const phase = ref<SessionPhase>(isHost ? 'upload' : 'present')
+const phase = ref<SessionPhase>(props.role === 'host' ? 'upload' : 'present')
 
 const uploadStatus = ref<'idle' | 'uploading' | 'converting' | 'success' | 'error'>('idle')
 const statusMessage = ref('')
@@ -48,10 +44,9 @@ watch([isSlidesReady, totalSlides], ([ready, slides]) => {
   }
 })
 
-
 onMounted(() => {
-  const studentName = props.studentName || 'Student'
-  store.connect(props.roomId, isHost ? 'host' : 'student', isHost ? 'Teacher' : studentName)
+  const name = props.role === 'host' ? 'Teacher' : (props.studentName || 'Student')
+  store.connect(props.roomId, props.role, name)
 })
 
 onUnmounted(() => {
@@ -131,23 +126,17 @@ const prevSlide = () => {
 }
 
 const showQuizMenu = ref(false)
-
-const startQuiz = () => {
-  phase.value = 'quiz'
-  showQuizMenu.value = false
-}
-
-const endQuiz = () => {
-  if (!roomEnded.value) {
-    phase.value = 'present'
-  }
-}
+const startQuiz = () => { phase.value = 'quiz'; showQuizMenu.value = false }
+const endQuiz = () => { if (!roomEnded.value) phase.value = 'present' }
 
 const showEndSessionModal = ref(false)
 const promptEndSession = () => { showEndSessionModal.value = true }
 const confirmEndSession = () => {
   showEndSessionModal.value = false
   store.endClassroom(props.roomId)
+}
+const exitClass = () => {
+  store.logout()
   emit('exit')
 }
 </script>
@@ -157,16 +146,16 @@ const confirmEndSession = () => {
     <header class="h-16 border-b border-zinc-800 bg-zinc-900/80 flex justify-between items-center px-6 sticky top-0 z-[60]">
       <div class="flex items-center gap-3">
         <span class="text-zinc-400 font-medium">Room:</span>
-        <span class="text-xl font-mono font-bold text-neutral-100 bg-zinc-800 px-3 py-1 rounded-md">{{ props.roomId }}</span>
+        <span class="text-xl font-mono font-bold text-neutral-100 bg-zinc-800 px-3 py-1 rounded-md">{{ roomId }}</span>
       </div>
       <div class="flex items-center gap-4">
-        <div class="px-3 py-1 rounded text-xs font-bold uppercase tracking-wide" :class="isHost ? 'bg-neutral-200 text-zinc-900' : 'bg-zinc-800 text-zinc-300'">
-          {{ isHost ? 'Host' : 'Student' }}
+        <div class="px-3 py-1 rounded text-xs font-bold uppercase tracking-wide" :class="role === 'host' ? 'bg-neutral-200 text-zinc-900' : 'bg-zinc-800 text-zinc-300'">
+          {{ role === 'host' ? 'Host' : 'Student' }}
         </div>
-        <button v-if="isHost && !roomEnded" @click="promptEndSession" class="px-4 py-1.5 bg-red-900/50 hover:bg-red-900 text-red-200 border border-red-800 rounded-md text-sm font-semibold transition">
+        <button v-if="role === 'host' && !roomEnded" @click="promptEndSession" class="px-4 py-1.5 bg-red-900/50 hover:bg-red-900 text-red-200 border border-red-800 rounded-md text-sm font-semibold transition">
           End Session
         </button>
-        <button v-if="!isHost && !roomEnded" @click="() => { store.logout(); emit('exit') }" class="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-md text-sm font-semibold transition">
+        <button v-if="role === 'student' && !roomEnded" @click="exitClass" class="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-md text-sm font-semibold transition">
           Exit Class
         </button>
       </div>
@@ -195,12 +184,12 @@ const confirmEndSession = () => {
             </div>
           </div>
         </div>
-        <button @click="() => { store.logout(); emit('exit') }" class="mt-8 px-6 py-2 bg-neutral-100 text-zinc-950 rounded-lg font-bold hover:bg-neutral-300 transition">
+        <button @click="emit('exit')" class="mt-8 px-6 py-2 bg-neutral-100 text-zinc-950 rounded-lg font-bold hover:bg-neutral-300 transition">
           ← Go Home
         </button>
       </div>
 
-      <div v-else-if="phase === 'upload' && isHost" class="flex items-center justify-center h-full">
+      <div v-else-if="phase === 'upload' && role === 'host'" class="flex items-center justify-center h-full">
         <div class="w-full max-w-2xl bg-zinc-900 border-2 border-dashed border-zinc-700 rounded-2xl p-12 text-center">
           <h2 class="text-3xl font-bold text-neutral-100 mb-4">Upload Presentation</h2>
           <p class="text-zinc-400 mb-8">Select a .pptx or .pdf file. Conversion may take a few seconds.</p>
@@ -219,17 +208,17 @@ const confirmEndSession = () => {
         </div>
       </div>
 
-      <div v-else-if="phase === 'upload' && !isHost" class="flex flex-col items-center justify-center h-full">
+      <div v-else-if="phase === 'upload' && role === 'student'" class="flex flex-col items-center justify-center h-full">
         <div class="animate-pulse w-16 h-16 bg-zinc-800 rounded-full mb-6"></div>
         <h2 class="text-2xl font-bold text-neutral-100">Waiting for Teacher...</h2>
         <p class="text-zinc-500 mt-2">The presentation material is being prepared.</p>
       </div>
 
       <template v-else>
-        <div v-if="isHost" class="flex flex-col h-full relative">
+        <div v-if="role === 'host'" class="flex flex-col h-full relative">
           <div class="flex-1 flex items-center justify-center p-6">
             <div class="w-full max-w-6xl bg-black border border-zinc-800 rounded-xl shadow-2xl aspect-video flex items-center justify-center">
-              <img v-if="totalSlides > 0" :src="`${API_BASE_URL}/slides/${props.roomId}/${slideFilename}`" class="w-full h-full object-contain" alt="Slide" />
+              <img v-if="totalSlides > 0" :src="`${API_BASE_URL}/slides/${roomId}/${slideFilename}`" class="w-full h-full object-contain" alt="Slide" />
               <p v-else class="text-zinc-600">Loading slides...</p>
             </div>
           </div>
@@ -250,13 +239,13 @@ const confirmEndSession = () => {
             </div>
             <div class="text-sm text-zinc-500">Slide {{ currentSlide }} / {{ totalSlides }}</div>
           </div>
-          <QuizPanel v-if="phase === 'quiz'" :is-host="isHost" :room-id="props.roomId" @close-quiz="endQuiz" />
+          <QuizPanel v-if="phase === 'quiz'" :is-host="true" :room-id="roomId" @close-quiz="endQuiz" />
         </div>
 
         <div v-else class="grid grid-cols-[2fr_1fr] h-full">
           <div class="flex items-center justify-center p-6">
             <div class="w-full bg-black border border-zinc-800 rounded-xl shadow-2xl aspect-video flex items-center justify-center">
-              <img v-if="totalSlides > 0" :src="`${API_BASE_URL}/slides/${props.roomId}/${slideFilename}`" class="w-full h-full object-contain" alt="Slide" />
+              <img v-if="totalSlides > 0" :src="`${API_BASE_URL}/slides/${roomId}/${slideFilename}`" class="w-full h-full object-contain" alt="Slide" />
               <p v-else class="text-zinc-600">Loading slides...</p>
             </div>
           </div>
@@ -267,7 +256,7 @@ const confirmEndSession = () => {
               <div class="text-2xl font-mono mt-2 text-indigo-400">{{ currentUser?.score || 0 }} pts</div>
             </div>
             <div class="flex-1">
-              <QuizPanel :is-host="false" :room-id="props.roomId" @close-quiz="endQuiz" />
+              <QuizPanel :is-host="false" :room-id="roomId" @close-quiz="endQuiz" />
             </div>
           </aside>
         </div>

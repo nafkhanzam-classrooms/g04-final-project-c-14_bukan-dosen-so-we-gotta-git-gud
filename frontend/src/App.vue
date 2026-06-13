@@ -13,7 +13,6 @@ const currentView = ref<AppView>('landing')
 const activeRoomId = ref<string | null>(null)
 const activeRole = ref<'host' | 'student' | null>(null)
 const activeStudentName = ref<string | null>(null)
-const lastErrorMessage = ref<string>('')
 
 function loadSession() {
   const savedRoomId = localStorage.getItem('active_room_id')
@@ -44,24 +43,12 @@ function clearSession() {
   localStorage.removeItem('active_room_id')
   localStorage.removeItem('active_role')
   localStorage.removeItem('active_student_name')
-  store.logout() // also disconnects WebSocket
+  store.logout()
 }
 
-function goToLanding() { 
-  clearSession()
-  lastErrorMessage.value = ''
-  currentView.value = 'landing' 
-}
-function goToHostDashboard() { 
-  clearSession()
-  lastErrorMessage.value = ''
-  currentView.value = 'host-dashboard' 
-}
-function goToJoin() { 
-  clearSession()
-  lastErrorMessage.value = ''
-  currentView.value = 'join' 
-}
+function goToLanding() { clearSession(); currentView.value = 'landing' }
+function goToHostDashboard() { clearSession(); currentView.value = 'host-dashboard' }
+function goToJoin() { clearSession(); currentView.value = 'join' }
 function goToRoom(roomId: string, role: 'host' | 'student', studentName?: string) {
   saveSession(roomId, role, studentName)
   currentView.value = 'room'
@@ -74,18 +61,9 @@ watch(() => store.roomEnded, (ended) => {
   }
 })
 watch(() => store.lastError, (err) => {
-  if (err && (err.includes('not found') || err.includes('closed'))) {
-    lastErrorMessage.value = err
-    if (activeRole.value === 'student') {
-      clearSession()
-      currentView.value = 'join'
-    } else if (activeRole.value === 'host') {
-      clearSession()
-      currentView.value = 'host-dashboard'
-    } else {
-      clearSession()
-      currentView.value = 'landing'
-    }
+  if (err && (err.includes('not found') || err.includes('closed') || err.includes('ended') || err.includes('does not exist'))) {
+    clearSession()
+    currentView.value = 'landing'
   }
 })
 
@@ -111,7 +89,6 @@ onMounted(() => {
   />
   <StudentJoinView 
     v-else-if="currentView === 'join'" 
-    :error-message="lastErrorMessage"
     @joined="(roomId, studentName) => goToRoom(roomId, 'student', studentName)"
     @back="goToLanding"
   />

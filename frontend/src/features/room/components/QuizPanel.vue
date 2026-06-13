@@ -11,7 +11,6 @@ const newQuestionId = ref('Q1')
 const newOptionsStr = ref('A, B, C, D')
 const studentAnswer = ref<string | null>(null)
 
-// Reset jawaban lokal siswa ketika Question ID berubah
 watch(() => store.activeQuiz.questionId, () => {
   studentAnswer.value = null
 })
@@ -43,7 +42,7 @@ const setCorrectAnswer = (opt: string) => {
 }
 
 const answerAndRemember = (opt: string) => {
-  if (studentAnswer.value) return // Prevent multiple answers locally
+  if (studentAnswer.value) return
   studentAnswer.value = opt
   store.answerQuiz(props.roomId, store.activeQuiz.questionId!, opt)
 }
@@ -57,7 +56,7 @@ const closeOverlay = () => {
 <template>
   <template v-if="!isHost">
     <div v-if="store.activeQuiz.questionId" class="fixed inset-0 bg-zinc-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-8 z-50">
-      
+
       <template v-if="store.activeQuiz.isActive">
         <h3 class="text-3xl font-bold text-neutral-100 mb-8">Select an Answer</h3>
         <div class="grid grid-cols-2 gap-4 w-full max-w-lg">
@@ -97,7 +96,7 @@ const closeOverlay = () => {
           <h3 class="text-3xl font-bold mb-2" :class="isCorrect ? 'text-green-400' : 'text-red-400'">
             {{ isCorrect ? 'Correct!' : 'Incorrect' }}
           </h3>
-          
+
           <div class="space-y-3 mt-8 mb-8 text-left bg-zinc-950 p-5 rounded-xl border border-zinc-800/80">
             <div class="flex justify-between items-center">
               <span class="text-zinc-400">Your answer</span>
@@ -124,7 +123,7 @@ const closeOverlay = () => {
   </template>
 
   <div v-if="isHost" class="absolute bottom-4 right-4 bg-zinc-900/95 border border-zinc-700 p-5 rounded-xl shadow-2xl backdrop-blur-md z-10 w-96">
-    
+
     <div v-if="!store.activeQuiz.questionId">
       <div class="flex justify-between items-center mb-5">
         <span class="font-bold text-neutral-200 text-lg">Create Pop Quiz</span>
@@ -160,7 +159,7 @@ const closeOverlay = () => {
           <div class="absolute left-0 top-0 bottom-0 rounded-md -z-10 transition-all duration-1000 ease-out" 
                :class="opt === store.activeQuiz.correctAnswer ? 'bg-green-900/40' : 'bg-zinc-800'"
                :style="{ width: `${totalResponses === 0 ? 0 : (count / totalResponses) * 100}%` }"></div>
-          
+
           <div class="w-full h-full flex justify-between items-center px-3 rounded-md border"
                :class="opt === store.activeQuiz.correctAnswer ? 'border-green-500 text-green-400 bg-green-900/10' : 'border-zinc-700/50 text-neutral-200'">
             <span class="font-mono font-bold text-lg w-8">{{ opt }}</span>
@@ -195,7 +194,7 @@ const closeOverlay = () => {
           Stop Quiz
         </button>
       </div>
-
+      
     </div>
   </div>
 </template>
