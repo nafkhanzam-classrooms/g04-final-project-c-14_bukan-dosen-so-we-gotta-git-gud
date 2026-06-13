@@ -9,6 +9,7 @@ from quiz.domain.quiz_payload import (
     QuizStopPayload,
 )
 from quiz.domain.response import QuizErrorResponse
+from shared.domain.redis.event_publisher import EventPublisher
 from shared.infrastructure.websocket.manager import WSConnectionManager
 
 if TYPE_CHECKING:
@@ -18,9 +19,12 @@ logger = logging.getLogger(__name__)
 
 
 class QuizHandler:
-    def __init__(self, service: QuizService, ws_manager: WSConnectionManager):
+    def __init__(
+        self, service: QuizService, ws_manager: WSConnectionManager, event_bus: EventPublisher
+    ):
         self.service = service
         self.ws_manager = ws_manager
+        self.event_bus = event_bus
         self._handlers: dict[str, Callable[[str, dict[str, Any]], Awaitable[None]]] = {
             "quiz:start": self._handle_start,
             "quiz:answer": self._handle_answer,
@@ -45,6 +49,10 @@ class QuizHandler:
             await self.service.start_quiz(
                 session_id, data.class_code, data.question_id, data.options
             )
+            await self.event_bus.publish(
+                "room_events", {"event": "room:activity", "class_code": data.class_code}
+            )
+            logger.info("room:activity published for class %s (quiz start)", data.class_code)
         except (PermissionError, ValueError) as e:
             logger.warning(f"Start quiz error: {e}")
             await self._send_error(session_id, str(e))
@@ -52,23 +60,14 @@ class QuizHandler:
             logger.exception("Unexpected error in quiz:start")
             await self._send_error(session_id, "Internal server error")
 
-    async def _handle_answer(self, session_id: str, payload: dict[str, Any]) -> None:
-        try:
-            data = QuizAnswerPayload(**payload)
-            await self.service.answer_quiz(
-                session_id, data.class_code, data.question_id, data.answer
-            )
-        except ValueError as e:
-            logger.warning(f"Answer quiz error: {e}")
-            await self._send_error(session_id, str(e))
-        except Exception:
-            logger.exception("Unexpected error in quiz:answer")
-            await self._send_error(session_id, "Internal server error")
-
     async def _handle_stop(self, session_id: str, payload: dict[str, Any]) -> None:
         try:
             data = QuizStopPayload(**payload)
             await self.service.stop_quiz(session_id, data.class_code, data.question_id)
+            await self.event_bus.publish(
+                "room_events", {"event": "room:activity", "class_code": data.class_code}
+            )
+            logger.info("room:activity published for class %s (quiz stop)", data.class_code)
         except (PermissionError, ValueError) as e:
             logger.warning(f"Stop quiz error: {e}")
             await self._send_error(session_id, str(e))
@@ -82,11 +81,28 @@ class QuizHandler:
             await self.service.close_quiz(
                 session_id, data.class_code, data.question_id, data.correct_answer
             )
+            await self.event_bus.publish(
+                "room_events", {"event": "room:activity", "class_code": data.class_code}
+            )
+            logger.info("room:activity published for class %s (quiz close)", data.class_code)
         except (PermissionError, ValueError) as e:
             logger.warning(f"Close quiz error: {e}")
             await self._send_error(session_id, str(e))
         except Exception:
             logger.exception("Unexpected error in quiz:close")
+            await self._send_error(session_id, "Internal server error")
+
+    async def _handle_answer(self, session_id: str, payload: dict[str, Any]) -> None:
+        try:
+            data = QuizAnswerPayload(**payload)
+            await self.service.answer_quiz(
+                session_id, data.class_code, data.question_id, data.answer
+            )
+        except ValueError as e:
+            logger.warning(f"Answer quiz error: {e}")
+            await self._send_error(session_id, str(e))
+        except Exception:
+            logger.exception("Unexpected error in quiz:answer")
             await self._send_error(session_id, "Internal server error")
 
     async def _send_error(self, session_id: str, message: str) -> None:

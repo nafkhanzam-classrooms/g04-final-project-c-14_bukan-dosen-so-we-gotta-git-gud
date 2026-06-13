@@ -14,7 +14,10 @@ class RoomEventHandler:
     ) -> None:
         self.classroom_service = classroom_service
         self.broadcast_service = broadcast_service
-        self._event_handlers = {"slides:ready": self._handle_slides_ready}
+        self._event_handlers = {
+            "slides:ready": self._handle_slides_ready,
+            "room:activity": self._handle_room_activity,
+        }
 
     async def __call__(self, message: dict[str, Any]) -> None:
         event_type = message.get("event")
@@ -44,3 +47,12 @@ class RoomEventHandler:
             )
         else:
             logger.warning("Failed to set total_slides for class %s", class_code)
+
+    async def _handle_room_activity(self, event_data: dict[str, Any]) -> None:
+        class_code = event_data.get("class_code")
+        if not class_code:
+            logger.warning("room:activity event missing class_code")
+            return
+        # Akses repository melalui service untuk menjaga enkapsulasi
+        await self.classroom_service.refresh_ttl(class_code)
+        logger.debug("TTL refreshed for %s due to host activity", class_code)

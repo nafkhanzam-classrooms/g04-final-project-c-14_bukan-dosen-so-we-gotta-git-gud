@@ -30,6 +30,9 @@ async def main() -> None:
         except websockets.ConnectionClosed:
             pass
         finally:
+            class_code = await app.room_registry.get_room_by_session(session_id)
+            if class_code:
+                await app.classroom_service.handle_student_disconnect(session_id, class_code)
             await app.ws_manager.unregister(session_id)
             await app.room_registry.remove_participant_by_session(session_id)
 
