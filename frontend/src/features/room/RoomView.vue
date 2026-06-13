@@ -16,7 +16,7 @@ const store = useClassroomStore()
 const { currentSlide, totalSlides, isSlidesReady, lastError, currentUser, roomEnded, finalLeaderboard } = storeToRefs(store)
 
 type SessionPhase = 'upload' | 'present' | 'quiz' | 'ended'
-const phase = ref<SessionPhase>(props.role === 'host' ? 'upload' : 'present')
+const phase = ref<SessionPhase>('upload')
 
 // Update phase when slides become ready (after upload or after reconnect)
 watch([totalSlides, isSlidesReady], ([slides, ready]) => {
