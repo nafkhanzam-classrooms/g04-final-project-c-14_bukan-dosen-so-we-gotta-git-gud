@@ -85,7 +85,7 @@ async def test_create_room_success(classroom_service, mock_repository):
     await classroom_service.create_room(host_id="host_123", class_code="BIOL101")
 
     mock_repository.get_room.assert_called_once_with("BIOL101")
-    mock_repository.save_room.assert_called_once_with("BIOL101", "host_123")
+    mock_repository.save_room.assert_called_once_with("BIOL101", "host_123", 1800)
 
 
 @pytest.mark.asyncio
@@ -285,7 +285,7 @@ async def test_save_room(redis_repository, mock_redis):
     class_code = "BIO101"
     host_id = "host_abc"
 
-    await redis_repository.save_room(class_code, host_id)
+    await redis_repository.save_room(class_code, host_id, ttl=1800)
 
     mock_redis.hset.assert_called_once_with(
         "room:BIO101",
