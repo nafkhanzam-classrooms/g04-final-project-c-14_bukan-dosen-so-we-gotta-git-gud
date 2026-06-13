@@ -1,22 +1,42 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
+const route = useRoute()
 const roomCode = ref('')
 const username = ref('')
+const errorMessage = ref('')
+
+onMounted(() => {
+  if (route.query.error) {
+    errorMessage.value = route.query.error as string
+    router.replace({ path: '/join', query: {} })
+    setTimeout(() => {
+      errorMessage.value = ''
+    }, 5000)
+  }
+})
 
 const joinRoom = () => {
   if (roomCode.value && username.value) {
-    router.push(`/room/${roomCode.value.toUpperCase()}`)
+    router.push(`/room/${roomCode.value.toUpperCase()}?studentName=${encodeURIComponent(username.value)}`)
   }
 }
 </script>
 
 <template>
+  <button @click="router.push('/')" class="text-zinc-400 hover:text-neutral-200 text-sm absolute top-4 left-4">
+    ← Back to Home
+  </button>
   <div class="flex flex-col items-center justify-center h-full px-6">
     <div class="w-full max-w-md bg-zinc-900 border border-zinc-800 p-8 rounded-2xl shadow-2xl">
-      <h2 class="text-2xl font-bold text-neutral-100 mb-6 text-center">Join Session</h2>
+      <div class="flex justify-end mb-2">
+      </div>
+      <div v-if="errorMessage" class="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm">
+        {{ errorMessage }}
+      </div>
+      <h1 class="text-2xl font-bold text-neutral-100 mb-6 text-center">Join Session</h1>
       
       <form @submit.prevent="joinRoom" class="space-y-5">
         <div>

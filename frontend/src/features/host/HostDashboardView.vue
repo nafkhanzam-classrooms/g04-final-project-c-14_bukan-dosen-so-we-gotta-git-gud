@@ -15,7 +15,10 @@ const createRoom = () => {
 </script>
 
 <template>
-  <div class="p-8 max-w-5xl mx-auto h-full flex flex-col pt-20">
+  <button @click="router.push('/')" class="text-zinc-400 hover:text-neutral-200 text-sm absolute top-4 left-4">
+    ← Back to Home
+  </button>
+  <div class="flex flex-col items-center justify-center h-full px-6">
     <div class="bg-zinc-900 border border-zinc-800 p-10 rounded-2xl shadow-2xl text-center">
       <h1 class="text-3xl font-bold text-neutral-100 mb-4">Teacher Dashboard</h1>
       <p class="text-zinc-400 mb-10 max-w-lg mx-auto">
