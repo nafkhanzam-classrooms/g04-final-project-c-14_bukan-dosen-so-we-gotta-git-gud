@@ -28,8 +28,7 @@ async def test_process_pdf_converts_to_webp(
     volume_dir = str(tmp_path)
     await process_pdf("room", "/fake.pdf", volume_dir)
 
-    # Verify pdftoppm call with -png
-    assert mock_exec.call_args_list[0][0][1] == "-png"
+    assert mock_exec.call_args_list[0][0][1] == "-jpeg"
     assert "cwebp" in mock_exec.call_args_list[1][0]
     mock_remove.assert_called_once()
 

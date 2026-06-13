@@ -11,13 +11,21 @@ ENV UV_COMPILE_BYTECODE=1 \
 # Stage 2: Development stage
 FROM base AS development
 
+# Persetujuan EULA otomatis untuk mscorefonts
+RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
+
+# Mengaktifkan repo contrib/non-free dan menginstal dependensi + font
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    sed -i -e 's/Components: main/Components: main contrib non-free/g' /etc/apt/sources.list.d/debian.sources || true && \
     apt-get update && apt-get install -y --no-install-recommends \
     libreoffice \
     poppler-utils \
     fonts-liberation \
+    ttf-mscorefonts-installer \
+    fontconfig \
     webp \
+    && fc-cache -f -v \
     && rm -rf /var/lib/apt/lists/*
 
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -36,17 +44,23 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev
 
 # Stage 4: Production stage
-FROM python:3.12-slim AS production
+FROM python:3.12-slim-bookworm AS production
 
 WORKDIR /app
 
+RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
+
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    sed -i -e 's/Components: main/Components: main contrib non-free/g' /etc/apt/sources.list.d/debian.sources || true && \
     apt-get update && apt-get install -y --no-install-recommends \
     libreoffice \
     poppler-utils \
     fonts-liberation \
+    ttf-mscorefonts-installer \
+    fontconfig \
     webp \
+    && fc-cache -f -v \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/.venv /app/.venv
