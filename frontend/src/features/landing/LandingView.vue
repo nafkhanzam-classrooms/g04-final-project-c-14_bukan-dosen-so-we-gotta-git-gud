@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
+const emit = defineEmits<{
+  (e: 'join'): void
+  (e: 'host'): void
+}>()
 
-const router = useRouter()
 </script>
 
 <template>
@@ -16,13 +18,13 @@ const router = useRouter()
       
       <div class="flex flex-col sm:flex-row gap-4 justify-center">
         <button 
-          @click="router.push('/join')"
+          @click="emit('join')"
           class="px-8 py-4 bg-neutral-100 text-zinc-950 font-bold rounded-xl hover:bg-neutral-300 transition shadow-lg"
         >
           Join as Student
         </button>
         <button 
-          @click="router.push('/host')"
+          @click="emit('host')"
           class="px-8 py-4 bg-zinc-800 text-neutral-200 font-bold rounded-xl border border-zinc-700 hover:bg-zinc-700 hover:text-neutral-100 transition shadow-lg"
         >
           Host a Class

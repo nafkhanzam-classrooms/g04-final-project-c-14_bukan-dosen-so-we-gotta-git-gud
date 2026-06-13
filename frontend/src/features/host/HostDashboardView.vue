@@ -1,21 +1,25 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
 
-const router = useRouter()
+
 const isGenerating = ref(false)
+
+const emit = defineEmits<{
+  (e: 'room-created', roomId: string): void
+  (e: 'back'): void
+}>()
 
 const createRoom = () => {
   isGenerating.value = true
   setTimeout(() => {
     const newRoomCode = Math.random().toString(36).substring(2, 8).toUpperCase()
-    router.push(`/room/${newRoomCode}?role=host`)
+    emit('room-created', newRoomCode)
   }, 1000)
 }
 </script>
 
 <template>
-  <button @click="router.push('/')" class="text-zinc-400 hover:text-neutral-200 text-sm absolute top-4 left-4">
+  <button @click="emit('back')" class="text-zinc-400 hover:text-neutral-200 text-sm absolute top-4 left-4">
     ← Back to Home
   </button>
   <div class="flex flex-col items-center justify-center h-full px-6">
