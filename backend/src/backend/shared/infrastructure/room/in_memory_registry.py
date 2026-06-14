@@ -9,6 +9,14 @@ class InMemoryRoomRegistry(RoomRegistry):
     def __init__(self) -> None:
         self._rooms: dict[str, set[str]] = {}
         self._session_room: dict[str, str] = {}
+        self._room_hosts: dict[str, str] = {}
+
+    async def set_room_host(self, class_code: str, host_session_id: str) -> None:
+        self._room_hosts[class_code] = host_session_id
+        logger.debug("Room %s host set to %s", class_code, host_session_id)
+
+    async def get_room_host(self, class_code: str) -> str | None:
+        return self._room_hosts.get(class_code)
 
     async def add_participant(self, class_code: str, session_id: str) -> None:
         self._rooms.setdefault(class_code, set()).add(session_id)
@@ -37,4 +45,6 @@ class InMemoryRoomRegistry(RoomRegistry):
         for session_id in participants:
             self._session_room.pop(session_id, None)
             logger.debug("Session %s removed during class %s termination", session_id, class_code)
-        logger.info("All participants removed from registry for room %s", class_code)
+
+        self._room_hosts.pop(class_code, None)
+        logger.info("All participants and host removed from registry for room %s", class_code)
