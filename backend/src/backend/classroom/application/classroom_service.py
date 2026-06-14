@@ -2,13 +2,17 @@ import logging
 
 from classroom.domain.classroom import Classroom, StudentState
 from classroom.domain.repository_interface import ClassroomRepository
+from shared.domain.room.registry import RoomRegistry
 
 logger = logging.getLogger(__name__)
 
 
 class ClassroomService:
-    def __init__(self, repository: ClassroomRepository, room_ttl: int = 1800):
+    def __init__(
+        self, repository: ClassroomRepository, room_registry: RoomRegistry, room_ttl: int = 1800
+    ):
         self.repo = repository
+        self.room_registry = room_registry
         self.room_ttl = room_ttl
 
     async def create_room(self, host_id: str, class_code: str) -> None:
@@ -64,12 +68,13 @@ class ClassroomService:
 
     async def verify_host(self, session_id: str, class_code: str) -> None:
         """Verifies if the given session_id is the host of the room."""
-        room = await self.repo.get_room(class_code)
-        if not room:
-            logger.warning("Host verification failed: Room '%s' not found.", class_code)
-            raise ValueError("Class not found.")
-
-        if room.get("host_session_id") != session_id:
+        host_id = await self.room_registry.get_room_host(class_code)
+        if not host_id:
+            room = await self.repo.get_room(class_code)
+            if not room:
+                raise ValueError("Class not found.")
+            host_id = room.get("host_session_id")
+        if host_id != session_id:
             logger.warning("Unauthorized action attempt by %s for class %s", session_id, class_code)
             raise PermissionError("Only the host is authorized to perform this action.")
 
@@ -86,12 +91,14 @@ class ClassroomService:
         logger.debug("TTL refreshed via service for class %s", class_code)
 
     async def handle_student_disconnect(self, session_id: str, class_code: str) -> None:
-        room = await self.repo.get_room(class_code)
-        if not room:
-            logger.warning("Room %s not found during disconnect of %s", class_code, session_id)
+        # Ambil host dari in-memory registry, tanpa Redis call
+        host_id = await self.room_registry.get_room_host(class_code)
+        if host_id is None:
+            logger.warning(
+                "Room %s not in registry during disconnect of %s", class_code, session_id
+            )
             return
 
-        host_id = room.get("host_session_id")
         if session_id == host_id:
             logger.info(
                 "Host %s disconnected from class %s: waiting for TTL", session_id, class_code

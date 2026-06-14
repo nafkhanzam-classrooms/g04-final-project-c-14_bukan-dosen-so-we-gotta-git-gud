@@ -76,6 +76,7 @@ class ClassroomHandler:
             await self.service.create_room(host_id=session_id, class_code=data.class_code)
 
             await self.room_registry.add_participant(data.class_code, session_id)
+            await self.room_registry.set_room_host(data.class_code, session_id)
 
             response_data = ClassroomCreatedResponse(class_code=data.class_code)
 
