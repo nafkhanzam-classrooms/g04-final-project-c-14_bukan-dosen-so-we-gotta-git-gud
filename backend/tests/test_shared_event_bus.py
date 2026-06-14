@@ -1,46 +1,85 @@
+import asyncio
 import json
-from unittest.mock import AsyncMock, MagicMock
+from typing import Any
 
 import pytest
+from shared.domain.redis.client import RedisClient
 from shared.infrastructure.redis.event_bus import RedisEventBus
 
 
+class FakePubSub:
+    """Simulates a redis PubSub object that can subscribe and listen."""
+
+    def __init__(self, messages: list[dict[str, Any]]) -> None:
+        self.channel: str | None = None
+        self._messages = messages
+
+    async def subscribe(self, channel: str) -> None:
+        self.channel = channel
+
+    async def listen(self) -> Any:
+        for msg in self._messages:
+            yield msg
+
+
+class FakeRedisClient(RedisClient):
+    """Implements just enough of RedisClient to satisfy RedisEventBus."""
+
+    def __init__(self) -> None:
+        self.published: list[tuple[str, str]] = []
+        self.pubsub_messages: list[dict[str, Any]] = []
+
+    async def execute(self, *args: Any, **kwargs: Any) -> Any:
+        if args and args[0] == "PUBLISH":
+            channel: str = args[1]
+            raw_msg: str = args[2]
+            self.published.append((channel, raw_msg))
+            return len(raw_msg)
+        return None
+
+    async def ping(self) -> bool:
+        return True
+
+    def pubsub(self) -> FakePubSub:
+        return FakePubSub(self.pubsub_messages)
+
+
+# Fixtures
 @pytest.fixture
-def mock_redis():
-    redis = AsyncMock()
-    redis.publish = AsyncMock()
-    return redis
+def fake_redis() -> FakeRedisClient:
+    return FakeRedisClient()
 
 
 @pytest.fixture
-def event_bus(mock_redis):
-    return RedisEventBus(redis_client=mock_redis)
+def event_bus(fake_redis: FakeRedisClient) -> RedisEventBus:
+    return RedisEventBus(redis_client=fake_redis)
 
 
+# Tests
 @pytest.mark.asyncio
-async def test_publish(event_bus, mock_redis):
-    msg = {"event": "slides:ready", "data": {"total_slides": 5}}
+async def test_publish(event_bus: RedisEventBus, fake_redis: FakeRedisClient) -> None:
+    msg: dict[str, Any] = {"event": "slides:ready", "data": {"total_slides": 5}}
     await event_bus.publish("room_events", msg)
 
-    mock_redis.publish.assert_called_once_with("room_events", json.dumps(msg))
+    assert len(fake_redis.published) == 1
+    channel, raw_msg = fake_redis.published[0]
+    assert channel == "room_events"
+    assert json.loads(raw_msg) == msg
 
 
 @pytest.mark.asyncio
-async def test_subscribe_and_handle_message(event_bus, mock_redis):
-    pubsub = AsyncMock()
-    pubsub.subscribe = AsyncMock()
+async def test_subscribe_and_handle_message(
+    event_bus: RedisEventBus, fake_redis: FakeRedisClient
+) -> None:
+    test_data: dict[str, Any] = {"event": "test", "data": {"key": "val"}}
+    fake_redis.pubsub_messages = [{"type": "message", "data": json.dumps(test_data)}]
 
-    # simulate listen as an async generator
-    async def mock_listen():
-        yield {"type": "message", "data": '{"event": "test", "data": {"key": "val"}}'}
+    received: list[dict[str, Any]] = []
 
-    pubsub.listen = mock_listen
+    async def my_handler(data: dict[str, Any]) -> None:
+        received.append(data)
 
-    # Override mock_redis.pubsub with a normal Mock, not an async one
-    mock_redis.pubsub = MagicMock(return_value=pubsub)
+    await asyncio.wait_for(event_bus.subscribe("room_events", my_handler), timeout=1)
 
-    handler = AsyncMock()
-    await event_bus.subscribe("room_events", handler)
-
-    pubsub.subscribe.assert_called_once_with("room_events")
-    handler.assert_called_once_with({"event": "test", "data": {"key": "val"}})
+    assert len(received) == 1
+    assert received[0] == test_data

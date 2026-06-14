@@ -3,13 +3,13 @@ import logging
 from typing import cast
 
 from quiz.domain.repository_interface import QuizRepository
-from redis.asyncio import Redis
+from shared.domain.redis.client import RedisClient
 
 logger = logging.getLogger(__name__)
 
 
 class QuizRedisRepository(QuizRepository):
-    def __init__(self, redis_client: Redis):
+    def __init__(self, redis_client: RedisClient):
         self.redis = redis_client
 
     def _quiz_key(self, class_code: str, question_id: str) -> str:
@@ -20,18 +20,19 @@ class QuizRedisRepository(QuizRepository):
 
     async def start_quiz(self, class_code: str, question_id: str, options: list[str]) -> None:
         key = self._quiz_key(class_code, question_id)
-        await self.redis.hset(key, mapping={"options": json.dumps(options), "is_active": "1"})
+        await self.redis.execute("HSET", key, "options", json.dumps(options), "is_active", "1")
         logger.debug(f"Quiz started in Redis: {key}")
 
     async def stop_quiz(self, class_code: str, question_id: str) -> None:
         key = self._quiz_key(class_code, question_id)
-        await self.redis.hset(key, "is_active", "0")
+        await self.redis.execute("HSET", key, "is_active", "0")
         logger.debug(f"Quiz stopped: {key}")
 
     async def is_active(self, class_code: str, question_id: str) -> bool:
         key = self._quiz_key(class_code, question_id)
-        active = await self.redis.hget(key, "is_active")
-        return active == "1"
+        active = await self.redis.execute("HGET", key, "is_active")
+        result: bool = active == "1"
+        return result
 
     async def add_answer(
         self, class_code: str, question_id: str, student_id: str, answer: str
@@ -42,8 +43,7 @@ class QuizRedisRepository(QuizRepository):
             return False
 
         answers_key = self._answers_key(class_code, question_id)
-        # Only set if the field doesn't yet exist
-        added = await self.redis.hsetnx(answers_key, student_id, answer)
+        added = await self.redis.execute("HSETNX", answers_key, student_id, answer)
         if added:
             logger.debug(f"Answer added: {student_id} -> {answer}")
         else:
@@ -52,19 +52,18 @@ class QuizRedisRepository(QuizRepository):
 
     async def get_answers(self, class_code: str, question_id: str) -> dict[str, str]:
         answers_key = self._answers_key(class_code, question_id)
-        raw = await self.redis.hgetall(answers_key)
+        raw = await self.redis.execute("HGETALL", answers_key)
         return cast("dict[str, str]", raw)
 
     async def close_quiz(self, class_code: str, question_id: str, correct_answer: str) -> None:
         key = self._quiz_key(class_code, question_id)
         answers_key = self._answers_key(class_code, question_id)
-        # Delete all quiz data
-        await self.redis.delete(key, answers_key)
+        await self.redis.execute("DEL", key, answers_key)
         logger.debug(f"Quiz data deleted: {key}")
 
     async def get_options(self, class_code: str, question_id: str) -> list[str] | None:
         key = self._quiz_key(class_code, question_id)
-        opts = await self.redis.hget(key, "options")
+        opts = await self.redis.execute("HGET", key, "options")
         if opts:
             return cast("list[str]", json.loads(opts))
         return None
@@ -74,10 +73,9 @@ class QuizRedisRepository(QuizRepository):
         cursor = 0
         pattern = f"quiz:{class_code}:*"
         while True:
-            cursor, keys = await self.redis.scan(cursor=cursor, match=pattern)
+            cursor, keys = await self.redis.execute("SCAN", cursor, "MATCH", pattern)
             if keys:
-                await self.redis.delete(*keys)
-
+                await self.redis.execute("DEL", *keys)
             if int(cursor) == 0:
                 break
         logger.debug("All quiz Redis data deleted for room %s", class_code)

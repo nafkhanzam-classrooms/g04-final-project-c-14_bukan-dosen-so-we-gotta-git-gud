@@ -193,13 +193,23 @@ async def test_quiz_delete_all_class_data():
     mock_redis = AsyncMock()
     repo = QuizRedisRepository(mock_redis)
 
-    mock_redis.scan.side_effect = [
+    # Simulate SCAN returning two batches
+    scan_responses = [
         (10, [b"quiz:MATH123:q1", b"quiz:MATH123:q1:answers"]),
         (0, [b"quiz:MATH123:q2"]),
+    ]
+    mock_redis.execute.side_effect = [
+        scan_responses[0],  # first SCAN
+        "OK",  # DEL for first batch
+        scan_responses[1],  # second SCAN
+        "OK",  # DEL for second batch
     ]
 
     await repo.delete_all_class_data("MATH123")
 
-    assert mock_redis.scan.call_count == 2
-    mock_redis.delete.assert_any_call(b"quiz:MATH123:q1", b"quiz:MATH123:q1:answers")
-    mock_redis.delete.assert_any_call(b"quiz:MATH123:q2")
+    # Assert SCAN calls
+    mock_redis.execute.assert_any_call("SCAN", 0, "MATCH", "quiz:MATH123:*")
+    mock_redis.execute.assert_any_call("SCAN", 10, "MATCH", "quiz:MATH123:*")
+    # Assert DEL calls
+    mock_redis.execute.assert_any_call("DEL", b"quiz:MATH123:q1", b"quiz:MATH123:q1:answers")
+    mock_redis.execute.assert_any_call("DEL", b"quiz:MATH123:q2")

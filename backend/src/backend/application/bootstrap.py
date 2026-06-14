@@ -13,7 +13,9 @@ from quiz.repository.host_provider_implementation import SlideHostProvider
 from quiz.repository.quiz_repository import QuizRedisRepository
 from redis.asyncio import Redis
 from shared.application.room.broadcast import RoomBroadcastService
+from shared.infrastructure.redis.client import NativeRedisClient
 from shared.infrastructure.redis.event_bus import RedisEventBus
+from shared.infrastructure.redis.rate_limited_client import RateLimitedRedis
 from shared.infrastructure.room.in_memory_registry import InMemoryRoomRegistry
 from shared.infrastructure.websocket.manager import WSConnectionManager
 from shared.infrastructure.websocket.router import WSEventRouter
@@ -30,20 +32,35 @@ logger = logging.getLogger(__name__)
 class Application:
     def __init__(self) -> None:
         # Low‑level infrastructure
-        self.redis = Redis(host="redis", port=6379, db=0, decode_responses=True)
+        self.raw_redis = Redis(
+            host="redis",
+            port=6379,
+            db=0,
+            decode_responses=True,
+            max_connections=500,
+        )
         self.ws_manager = WSConnectionManager(max_error_tolerance=settings.max_error_tolerance)
         self.room_registry = InMemoryRoomRegistry()
-        self.event_bus = RedisEventBus(self.redis)
+
+        # Redis clients
+        rate_limited_redis = RateLimitedRedis(self.raw_redis, max_concurrency=200)
+        event_redis_client = NativeRedisClient(self.raw_redis)
+        self.event_bus = RedisEventBus(event_redis_client)
 
         # Repositories
-        classroom_repo = ClassroomRedisRepository(self.redis)
-        slide_repo = SlideRedisRepository(self.redis)
-        quiz_repo = QuizRedisRepository(self.redis)
+        classroom_repo = ClassroomRedisRepository(rate_limited_redis)
+        slide_repo = SlideRedisRepository(rate_limited_redis)
+        quiz_repo = QuizRedisRepository(rate_limited_redis)
+        gamification_repo = GamificationRedisRepository(rate_limited_redis)
+
         host_provider = SlideHostProvider(slide_repo)
-        gamification_repo = GamificationRedisRepository(self.redis)
 
         # Services
-        self.classroom_service = ClassroomService(classroom_repo)
+        self.classroom_service = ClassroomService(
+            classroom_repo,
+            self.room_registry,
+            room_ttl=settings.room_ttl,
+        )
         self.broadcast_service = RoomBroadcastService(self.room_registry, self.ws_manager)
         self.slide_service = SlideService(slide_repo)
 
@@ -92,7 +109,7 @@ class Application:
 
     async def start_background_tasks(self) -> None:
         try:
-            await self.redis.ping()
+            await self.raw_redis.ping()
             logger.info("Redis connection established successfully.")
         except Exception as e:
             logger.error("Redis connection failed: %s", e)

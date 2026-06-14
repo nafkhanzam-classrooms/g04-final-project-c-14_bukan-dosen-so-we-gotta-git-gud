@@ -16,3 +16,9 @@ class RoomRegistry(ABC):
 
     @abstractmethod
     async def remove_all_participants(self, class_code: str) -> None: ...
+
+    @abstractmethod
+    async def set_room_host(self, class_code: str, host_session_id: str) -> None: ...
+
+    @abstractmethod
+    async def get_room_host(self, class_code: str) -> str | None: ...

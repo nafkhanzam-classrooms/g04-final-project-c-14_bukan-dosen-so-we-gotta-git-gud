@@ -3,7 +3,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-import redis.asyncio as redis
+from shared.domain.redis.client import RedisClient
 from shared.domain.redis.event_publisher import EventPublisher
 from shared.domain.redis.event_subscriber import EventSubscriber
 
@@ -11,16 +11,17 @@ logger = logging.getLogger(__name__)
 
 
 class RedisEventBus(EventPublisher, EventSubscriber):
-    def __init__(self, redis_client: redis.Redis) -> None:
-        self.redis = redis_client
+    def __init__(self, redis_client: RedisClient) -> None:
+        self._client = redis_client
+        self._redis = redis_client.pubsub()
 
     async def publish(self, channel: str, message: dict[str, Any]) -> None:
-        await self.redis.publish(channel, json.dumps(message))
+        await self._client.execute("PUBLISH", channel, json.dumps(message))
 
     async def subscribe(
         self, channel: str, handler: Callable[[dict[str, Any]], Awaitable[None]]
     ) -> None:
-        pubsub = self.redis.pubsub()
+        pubsub = self._client.pubsub()
         await pubsub.subscribe(channel)
         logger.info("Subscribed to Redis channel '%s'", channel)
         try:
