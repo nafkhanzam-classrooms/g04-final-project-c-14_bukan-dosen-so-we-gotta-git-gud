@@ -318,6 +318,6 @@ async def test_gamification_delete_data():
 
     await repo.delete_gamification_data("MATH123")
 
-    mock_redis.delete.assert_called_once_with(
-        "gamification:MATH123:streaks", "gamification:MATH123:leaderboard"
+    mock_redis.execute.assert_called_once_with(
+        "DEL", "gamification:MATH123:streaks", "gamification:MATH123:leaderboard"
     )

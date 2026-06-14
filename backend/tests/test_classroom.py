@@ -54,8 +54,8 @@ def mock_quiz_service():
 
 
 @pytest.fixture
-def classroom_service(mock_repository):
-    return ClassroomService(repository=mock_repository)
+def classroom_service(mock_repository, mock_room_registry):
+    return ClassroomService(repository=mock_repository, room_registry=mock_room_registry)
 
 
 @pytest.fixture
@@ -145,21 +145,24 @@ async def test_set_total_slides_room_not_found(classroom_service, mock_repositor
 
 
 @pytest.mark.asyncio
-async def test_verify_host_success(classroom_service, mock_repository):
+async def test_verify_host_success(classroom_service, mock_repository, mock_room_registry):
+    mock_room_registry.get_room_host.return_value = None  # fall back to repo
     mock_repository.get_room.return_value = {"host_session_id": "real_host"}
     await classroom_service.verify_host("real_host", "MATH123")
     mock_repository.get_room.assert_called_once_with("MATH123")
 
 
 @pytest.mark.asyncio
-async def test_verify_host_not_found(classroom_service, mock_repository):
+async def test_verify_host_not_found(classroom_service, mock_repository, mock_room_registry):
+    mock_room_registry.get_room_host.return_value = None
     mock_repository.get_room.return_value = None
     with pytest.raises(ValueError, match="Class not found"):
         await classroom_service.verify_host("host_1", "MATH123")
 
 
 @pytest.mark.asyncio
-async def test_verify_host_permission_error(classroom_service, mock_repository):
+async def test_verify_host_permission_error(classroom_service, mock_repository, mock_room_registry):
+    mock_room_registry.get_room_host.return_value = None
     mock_repository.get_room.return_value = {"host_session_id": "real_host"}
     with pytest.raises(PermissionError, match="Only the host is authorized"):
         await classroom_service.verify_host("imposter_session", "MATH123")
@@ -286,35 +289,40 @@ async def test_save_room(redis_repository, mock_redis):
 
     await redis_repository.save_room(class_code, host_id, ttl=1800)
 
-    mock_redis.hset.assert_called_once_with(
-        "room:BIO101",
-        mapping={"host_session_id": host_id, "current_slide": "1", "total_slides": "0"},
+    assert mock_redis.execute.call_count == 3  # HSET + EXPIRE x2
+
+    mock_redis.execute.assert_any_call(
+        "HSET", "room:BIO101", "host_session_id", host_id, "current_slide", "1", "total_slides", "0"
     )
+    # Also check EXPIRE calls
+    mock_redis.execute.assert_any_call("EXPIRE", "room:BIO101", 1800)
+    mock_redis.execute.assert_any_call("EXPIRE", "room:BIO101:students", 1800)
 
 
 @pytest.mark.asyncio
 async def test_get_room_found(redis_repository, mock_redis):
-    mock_redis.hgetall.return_value = {"host_session_id": "host_abc", "current_slide": "2"}
+    mock_redis.execute.return_value = {"host_session_id": "host_abc", "current_slide": "2"}
 
     room_data = await redis_repository.get_room("BIO101")
 
-    mock_redis.hgetall.assert_called_once_with("room:BIO101")
+    mock_redis.execute.assert_called_once_with("HGETALL", "room:BIO101")
     assert room_data == {"host_session_id": "host_abc", "current_slide": "2"}
 
 
 @pytest.mark.asyncio
 async def test_get_room_not_found(redis_repository, mock_redis):
-    mock_redis.hgetall.return_value = {}
+    mock_redis.execute.return_value = {}  # HGETALL returns empty dict
 
     room_data = await redis_repository.get_room("KOSONG")
 
+    mock_redis.execute.assert_called_once_with("HGETALL", "room:KOSONG")
     assert room_data is None
 
 
 @pytest.mark.asyncio
 async def test_update_total_slides(redis_repository, mock_redis):
     await redis_repository.update_total_slides("BIO101", 12)
-    mock_redis.hset.assert_called_once_with("room:BIO101", "total_slides", "12")
+    mock_redis.execute.assert_called_once_with("HSET", "room:BIO101", "total_slides", "12")
 
 
 @pytest.mark.asyncio
@@ -322,12 +330,12 @@ async def test_add_student(redis_repository, mock_redis):
     student = StudentState(name="Budi")
     await redis_repository.add_student("BIO101", "std_1", student)
 
-    mock_redis.hset.assert_called_once_with(
-        "room:BIO101:students", "std_1", student.model_dump_json()
+    mock_redis.execute.assert_called_once_with(
+        "HSET", "room:BIO101:students", "std_1", student.model_dump_json()
     )
 
 
 @pytest.mark.asyncio
 async def test_classroom_delete_room_data(redis_repository, mock_redis):
     await redis_repository.delete_room_data("MATH123")
-    mock_redis.delete.assert_called_once_with("room:MATH123", "room:MATH123:students")
+    mock_redis.execute.assert_called_once_with("DEL", "room:MATH123", "room:MATH123:students")

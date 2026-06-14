@@ -20,34 +20,34 @@ async def test_repository_update_current_slide() -> None:
     from slides.repository.slide_repository import SlideRedisRepository
 
     repo = SlideRedisRepository(redis_client=mock_redis)
-
     await repo.update_current_slide("XYZ123", 5)
-    mock_redis.hset.assert_called_once_with("room:XYZ123", "current_slide", "5")
+
+    mock_redis.execute.assert_called_once_with("HSET", "room:XYZ123", "current_slide", "5")
 
 
 @pytest.mark.asyncio
 async def test_repository_get_room_host() -> None:
     mock_redis = AsyncMock()
-    mock_redis.hget.return_value = "host_session_999"
+    mock_redis.execute.return_value = "host_session_999"
     from slides.repository.slide_repository import SlideRedisRepository
 
     repo = SlideRedisRepository(redis_client=mock_redis)
-
     host_id = await repo.get_room_host("XYZ123")
-    mock_redis.hget.assert_called_once_with("room:XYZ123", "host_session_id")
+
+    mock_redis.execute.assert_called_once_with("HGET", "room:XYZ123", "host_session_id")
     assert host_id == "host_session_999"
 
 
 @pytest.mark.asyncio
 async def test_repository_get_room_students() -> None:
     mock_redis = AsyncMock()
-    mock_redis.hkeys = AsyncMock(return_value=["student_1", "student_2"])
+    mock_redis.execute.return_value = ["student_1", "student_2"]
     from slides.repository.slide_repository import SlideRedisRepository
 
     repo = SlideRedisRepository(redis_client=mock_redis)
-
     students = await repo.get_room_students("XYZ123")
-    mock_redis.hkeys.assert_called_once_with("room:XYZ123:students")
+
+    mock_redis.execute.assert_called_once_with("HKEYS", "room:XYZ123:students")
     assert students == ["student_1", "student_2"]
 
 
